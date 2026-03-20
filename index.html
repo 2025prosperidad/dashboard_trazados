@@ -57,127 +57,69 @@
                 </div>
             </header>
 
-            <!-- Panel de Control y Filtros (Rediseñado) -->
-            <div class="report-header">
-                <div class="breadcrumb">MENÚ &nbsp; <i class="lucide lucide-chevron-right"></i> &nbsp; Reportador de trazados</div>
-            </div>
+            <!-- Filter Bar (global) -->
+            <div class="global-filter-bar">
+                <!-- Selectores Principales -->
+                <div class="filter-group">
+                    <label class="filter-label"><i class="lucide lucide-user"></i> Usuario:</label>
+                    <select id="filtro-usuario" class="filter-select" onchange="onFiltroUsuarioChange(this.value)">
+                        <option value="Todos">Todos los Usuarios</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label"><i class="lucide lucide-folder"></i> Tipo:</label>
+                    <select id="filtro-tipo" class="filter-select" onchange="onFiltroTipoChange(this.value)">
+                        <option value="Todos">Todos los Tipos</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label"><i class="lucide lucide-git-branch"></i> Fase:</label>
+                    <select id="filtro-fase" class="filter-select" onchange="onFiltroFaseChange(this.value)">
+                        <option value="Todos">Todas las Fases</option>
+                    </select>
+                </div>
 
-            <div class="filter-container">
-                <div class="filter-card">
-                    <div class="filter-card-header">
-                        <h3 class="filter-card-title">Filtro</h3>
-                        <div class="filter-actions">
-                            <button class="filter-btn-icon" title="Calcular" onclick="recalculateStats()">
-                                <i class="lucide lucide-calculator"></i>
-                            </button>
-                            <button class="filter-btn-icon" title="Limpiar Filtros" onclick="resetFilters()">
-                                <i class="lucide lucide-eraser"></i>
-                            </button>
-                            <button class="btn-primary-orange" onclick="generatePDF()">
-                                <i class="lucide lucide-file-text"></i> CREAR PDF
-                            </button>
-                            <div class="divider-v"></div>
-                            <button class="filter-btn-icon" title="Pantalla Completa" onclick="toggleFullscreen()">
-                                <i class="lucide lucide-maximize-2"></i>
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div class="filter-card-body">
-                        <!-- Row 1: Responsable, Tipo, Fase, Estado -->
-                        <div class="filter-row">
-                            <div class="form-group">
-                                <label>Responsable</label>
-                                <select id="filtro-usuario" class="form-control" onchange="onFiltroUsuarioChange(this.value)">
-                                    <option value="Todos">Todos los Usuarios</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Tipo de Trámite</label>
-                                <select id="filtro-tipo" class="form-control" onchange="onFiltroTipoChange(this.value)">
-                                    <option value="Todos">Todos los Tipos</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Fase</label>
-                                <select id="filtro-fase" class="form-control" onchange="onFiltroFaseChange(this.value)">
-                                    <option value="Todos">Todas las Fases</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Estados</label>
-                                <select id="filtro-estado" class="form-control" onchange="onFiltroEstadoChange(this.value)">
-                                    <option value="Todos">Agregar o buscar</option>
-                                </select>
-                            </div>
-                        </div>
+                <!-- Nuevos Filtros: Fechas -->
+                <div class="filter-group">
+                    <label class="filter-label"><i class="lucide lucide-calendar"></i> F. Inicio Desde:</label>
+                    <input type="date" id="filtro-inicio-desde" class="filter-select"
+                        onchange="onFiltroInicioDesdeChange(this.value)">
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label"><i class="lucide lucide-calendar"></i> F. Inicio Hasta:</label>
+                    <input type="date" id="filtro-inicio-hasta" class="filter-select"
+                        onchange="onFiltroInicioHastaChange(this.value)">
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label"><i class="lucide lucide-calendar-check"></i> F. Cumpl. Desde:</label>
+                    <input type="date" id="filtro-cumpl-desde" class="filter-select"
+                        onchange="onFiltroCumplDesdeChange(this.value)">
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label"><i class="lucide lucide-calendar-check"></i> F. Cumpl. Hasta:</label>
+                    <input type="date" id="filtro-cumpl-hasta" class="filter-select"
+                        onchange="onFiltroCumplHastaChange(this.value)">
+                </div>
 
-                        <!-- Row 2: Entidad N1, Entidad N2, Canton, Parroquia -->
-                        <div class="filter-row">
-                            <div class="form-group">
-                                <label>Entidad N1</label>
-                                <select id="filtro-level1" class="form-control" onchange="onFiltroLevel1Change(this.value)">
-                                    <option value="Todos">Seleccionar...</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Entidad N2</label>
-                                <select id="filtro-level2" class="form-control" onchange="onFiltroLevel2Change(this.value)">
-                                    <option value="Todos">Seleccionar...</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Cantón</label>
-                                <select id="filtro-canton" class="form-control" onchange="onFiltroCantonChange(this.value)">
-                                    <option value="Todos">Todos</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>Parroquia</label>
-                                <select id="filtro-parroquia" class="form-control" onchange="onFiltroParroquiaChange(this.value)">
-                                    <option value="Todos">Todas</option>
-                                </select>
-                            </div>
-                        </div>
+                <!-- Nuevos Filtros: Ubicacion -->
+                <div class="filter-group">
+                    <label class="filter-label"><i class="lucide lucide-map"></i> Cantón:</label>
+                    <select id="filtro-canton" class="filter-select" onchange="onFiltroCantonChange(this.value)">
+                        <option value="Todos">Todos</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label"><i class="lucide lucide-map-pin"></i> Parroquia:</label>
+                    <select id="filtro-parroquia" class="filter-select" onchange="onFiltroParroquiaChange(this.value)">
+                        <option value="Todos">Todas</option>
+                    </select>
+                </div>
 
-                        <!-- Row 3: Tipo de Filtro (Date Selection) -->
-                        <div class="filter-row-center">
-                            <div class="form-group-date-type">
-                                <label>Tipo de filtro de fecha</label>
-                                <div class="btn-group-date">
-                                    <button id="btn-fecha-inicio" class="btn-date active" onclick="setTipoFiltroFecha('inicio')">Fecha de Inicio</button>
-                                    <button id="btn-fecha-real" class="btn-date" onclick="setTipoFiltroFecha('real')">F. Real Cumplimiento</button>
-                                    <button id="btn-fecha-estimada" class="btn-date" onclick="setTipoFiltroFecha('estimada')">F. Estimada Cumplimiento</button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Row 4: Search Dates, Name, Direction -->
-                        <div class="filter-row">
-                            <div class="form-group">
-                                <label>Inicio búsqueda</label>
-                                <div class="input-with-icon">
-                                    <input type="date" id="filtro-fecha-desde" class="form-control" onchange="onFiltroFechaDesdeChange(this.value)">
-                                    <i class="lucide lucide-calendar"></i>
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label>Fin búsqueda</label>
-                                <div class="input-with-icon">
-                                    <input type="date" id="filtro-fecha-hasta" class="form-control" onchange="onFiltroFechaHastaChange(this.value)">
-                                    <i class="lucide lucide-calendar"></i>
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label>Nombre y Apellido</label>
-                                <input type="text" id="filtro-nombre" class="form-control" placeholder="Buscar..." oninput="onFiltroNombreChange(this.value)">
-                            </div>
-                            <div class="form-group">
-                                <label>Dirección</label>
-                                <input type="text" id="filtro-direccion" class="form-control" placeholder="Buscar..." oninput="onFiltroDireccionChange(this.value)">
-                            </div>
-                        </div>
-                    </div>
+                <!-- Nuevo Filtro: Solicitante (Busqueda de Texto) -->
+                <div class="filter-group">
+                    <label class="filter-label"><i class="lucide lucide-search"></i> Solicitante:</label>
+                    <input type="text" id="filtro-nombre" class="filter-select" placeholder="Buscar por nombre..."
+                        oninput="onFiltroNombreChange(this.value)">
                 </div>
             </div>
 
@@ -438,22 +380,24 @@
 
             <!-- Nuevos Filtros: Fechas -->
             <div class="mobile-filter-group">
-                <label>F. Desde</label>
-                <input type="date" id="filtro-fecha-desde-mobile" class="filter-select"
-                    onchange="document.getElementById('filtro-fecha-desde').value=this.value; onFiltroFechaDesdeChange(this.value)">
+                <label>F. Inicio Desde</label>
+                <input type="date" id="filtro-inicio-desde-mobile" class="filter-select"
+                    onchange="document.getElementById('filtro-inicio-desde').value=this.value; onFiltroInicioDesdeChange(this.value)">
             </div>
             <div class="mobile-filter-group">
-                <label>F. Hasta</label>
-                <input type="date" id="filtro-fecha-hasta-mobile" class="filter-select"
-                    onchange="document.getElementById('filtro-fecha-hasta').value=this.value; onFiltroFechaHastaChange(this.value)">
+                <label>F. Inicio Hasta</label>
+                <input type="date" id="filtro-inicio-hasta-mobile" class="filter-select"
+                    onchange="document.getElementById('filtro-inicio-hasta').value=this.value; onFiltroInicioHastaChange(this.value)">
             </div>
             <div class="mobile-filter-group">
-                <label>Tipo de Fecha</label>
-                <select class="filter-select" onchange="setTipoFiltroFecha(this.value)">
-                    <option value="inicio">Fecha de Inicio</option>
-                    <option value="real">F. Real Cumplimiento</option>
-                    <option value="estimada">F. Estimada Cumplimiento</option>
-                </select>
+                <label>F. Cumpl. Desde</label>
+                <input type="date" id="filtro-cumpl-desde-mobile" class="filter-select"
+                    onchange="document.getElementById('filtro-cumpl-desde').value=this.value; onFiltroCumplDesdeChange(this.value)">
+            </div>
+            <div class="mobile-filter-group">
+                <label>F. Cumpl. Hasta</label>
+                <input type="date" id="filtro-cumpl-hasta-mobile" class="filter-select"
+                    onchange="document.getElementById('filtro-cumpl-hasta').value=this.value; onFiltroCumplHastaChange(this.value)">
             </div>
 
             <hr style="border:0; border-top:1px solid #DEE2E6; margin: 10px 0;">
