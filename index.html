@@ -39,6 +39,10 @@
                     <i class="lucide lucide-layers"></i>
                     <span>Tramites</span>
                 </a>
+                <a href="#" class="nav-item" data-page="tendencias" onclick="navigateTo('tendencias')">
+                    <i class="lucide lucide-trending-up"></i>
+                    <span>Tendencias</span>
+                </a>
             </nav>
         </aside>
 
@@ -333,6 +337,67 @@
                 </div>
             </section>
 
+            <!-- Page: Tendencias -->
+            <section class="page hidden" id="page-tendencias">
+                <div class="page-body">
+                    <div class="title-row">
+                        <h2 class="page-title">Tendencias y Analisis Temporal</h2>
+                        <div class="date-badge">
+                            <i class="lucide lucide-trending-up"></i>
+                            <span id="tendencias-range">Cargando...</span>
+                        </div>
+                    </div>
+
+                    <!-- KPI row -->
+                    <div class="kpi-row" id="tend-kpis"></div>
+
+                    <!-- Chart 1: Full width - Line chart tramites por semana -->
+                    <div class="tend-chart-full">
+                        <div class="tend-chart-card">
+                            <div class="tend-chart-header">
+                                <div>
+                                    <h3 class="tend-chart-title">Nuevos Tramites por Semana</h3>
+                                    <p class="tend-chart-subtitle">Evolucion semanal de tramites ingresados por tipo</p>
+                                </div>
+                                <div class="tend-legend" id="tend-line-legend"></div>
+                            </div>
+                            <div class="tend-canvas-wrap tend-canvas-tall">
+                                <canvas id="tendLineChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts 2 & 3: Two columns -->
+                    <div class="tend-chart-row">
+                        <!-- Chart 2: Duration per responsible -->
+                        <div class="tend-chart-card">
+                            <div class="tend-chart-header">
+                                <div>
+                                    <h3 class="tend-chart-title">Duracion Promedio por Responsable</h3>
+                                    <p class="tend-chart-subtitle">Dias promedio activo en tramites (fases sin cerrar)</p>
+                                </div>
+                            </div>
+                            <div class="tend-canvas-wrap">
+                                <canvas id="tendDuracionChart"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Chart 3: Stacked bar - estado por tipo -->
+                        <div class="tend-chart-card">
+                            <div class="tend-chart-header">
+                                <div>
+                                    <h3 class="tend-chart-title">Estados por Tipo de Tramite</h3>
+                                    <p class="tend-chart-subtitle">Distribucion de estados por cada tipo</p>
+                                </div>
+                            </div>
+                            <div class="tend-canvas-wrap">
+                                <canvas id="tendEstadosChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <!-- Page: Detalle de Tramite -->
             <section class="page hidden" id="page-detalle">
                 <div class="page-body">
@@ -409,6 +474,10 @@
         <a href="#" class="mobile-nav-item" data-page="tipo" onclick="navigateTo('tipo')">
             <i class="lucide lucide-layers"></i>
             <span>Tramites</span>
+        </a>
+        <a href="#" class="mobile-nav-item" data-page="tendencias" onclick="navigateTo('tendencias')">
+            <i class="lucide lucide-trending-up"></i>
+            <span>Tend.</span>
         </a>
     </nav>
 

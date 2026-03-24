@@ -507,6 +507,7 @@ function navigateTo(page, detail = null) {
     else if (page === 'ranking-responsables') document.title = 'Ranking Responsables - Dashboard Trazados Viales';
     else if (page === 'productividad') document.title = 'Productividad - Dashboard Trazados Viales';
     else if (page === 'tipo') document.title = 'Tramites - Dashboard Trazados Viales';
+    else if (page === 'tendencias') document.title = 'Tendencias - Dashboard Trazados Viales';
 
     // Close mobile menu if open
     const overlay = document.getElementById('mobile-filter-overlay');
@@ -537,6 +538,7 @@ function renderAllPages() {
     renderRankingResponsablesPage();
     renderProductividadPage();
     renderTipoPage();
+    renderTendenciasPage();
 }
 
 /* ==========================================
@@ -1225,6 +1227,271 @@ function renderDetallePage(tramiteId) {
             <span class="progress-stat-label">Pendientes</span>
         </div>
     `;
+}
+
+/* ==========================================
+   PAGE 5: TENDENCIAS Y ANALISIS TEMPORAL
+   ========================================== */
+// Chart instances for Tendencias
+let tendLineChartInst = null;
+let tendDuracionChartInst = null;
+let tendEstadosChartInst = null;
+
+function renderTendenciasPage() {
+    const intake = getFilteredIntake();
+    const { tiempos } = dashboardData;
+    if (!intake || !tiempos) return;
+
+    // ── KPIs ──────────────────────────────────────────────────────────
+    const now = new Date();
+    const thisWeekStart = new Date(now);
+    thisWeekStart.setDate(now.getDate() - now.getDay());
+    thisWeekStart.setHours(0, 0, 0, 0);
+
+    const thisWeekCount = intake.filter(i => {
+        const d = parseDateOnly(i['Start date']);
+        return d && d >= thisWeekStart;
+    }).length;
+
+    const completados = intake.filter(i => getEstadoTramite(i, tiempos) === 'completado').length;
+    const enProgreso = intake.filter(i => getEstadoTramite(i, tiempos) === 'en_progreso').length;
+    const tiemposAbiertos = tiempos.filter(t => t.fecha_hora && (!t.fecha_hora_fin || t.fecha_hora_fin === ''));
+    const duraciones = tiemposAbiertos.map(t => {
+        const start = new Date(t.fecha_hora);
+        return isNaN(start) ? 0 : Math.floor((now - start) / 86400000);
+    }).filter(d => d >= 0);
+    const promDias = duraciones.length > 0 ? (duraciones.reduce((s, d) => s + d, 0) / duraciones.length).toFixed(1) : 0;
+
+    const kpiContainer = document.getElementById('tend-kpis');
+    if (kpiContainer) {
+        kpiContainer.innerHTML = `
+            <div class="kpi-card">
+                <span class="kpi-label">Esta Semana</span>
+                <span class="kpi-value" style="color:#1A3C6E">${thisWeekCount}</span>
+            </div>
+            <div class="kpi-card">
+                <span class="kpi-label">En Progreso</span>
+                <span class="kpi-value" style="color:#E88B00">${enProgreso}</span>
+            </div>
+            <div class="kpi-card">
+                <span class="kpi-label">Completados</span>
+                <span class="kpi-value" style="color:#007B4F">${completados}</span>
+            </div>
+            <div class="kpi-card">
+                <span class="kpi-label">Prom. Dias Abierto</span>
+                <span class="kpi-value" style="color:#A52422">${promDias}</span>
+            </div>
+        `;
+    }
+
+    // Date range badge
+    const dates = intake.map(i => parseDateOnly(i['Start date'])).filter(Boolean).sort((a, b) => a - b);
+    const rangeEl = document.getElementById('tendencias-range');
+    if (rangeEl && dates.length > 0) {
+        rangeEl.textContent = `${formatDate(dates[0])} - ${formatDate(dates[dates.length - 1])}`;
+    }
+
+    // ── CHART 1: Line — Tramites nuevos por semana ────────────────────
+    (function renderLineChart() {
+        // Build weekly buckets
+        if (dates.length === 0) return;
+        const minDate = new Date(dates[0]);
+        minDate.setDate(minDate.getDate() - minDate.getDay()); // align to Sunday
+        minDate.setHours(0, 0, 0, 0);
+        const maxDate = new Date();
+
+        const weeks = [];
+        const cursor = new Date(minDate);
+        while (cursor <= maxDate) {
+            weeks.push(new Date(cursor));
+            cursor.setDate(cursor.getDate() + 7);
+        }
+        const weekLabels = weeks.map(w => {
+            const months = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+            return `${w.getDate()} ${months[w.getMonth()]}`;
+        });
+
+        const types = Object.keys(TYPE_NAMES);
+        const typeColors = Object.values(TYPE_COLORS);
+        const datasets = types.map((code, i) => {
+            const color = TYPE_COLORS[code] || typeColors[i % typeColors.length];
+            const counts = weeks.map(wStart => {
+                const wEnd = new Date(wStart);
+                wEnd.setDate(wEnd.getDate() + 7);
+                return intake.filter(item => {
+                    if (extractTipo(item.Fase_del_Tramite) !== code) return false;
+                    const d = parseDateOnly(item['Start date']);
+                    return d && d >= wStart && d < wEnd;
+                }).length;
+            });
+            return {
+                label: code,
+                data: counts,
+                borderColor: color,
+                backgroundColor: color + '22',
+                borderWidth: 2,
+                pointRadius: 3,
+                pointHoverRadius: 6,
+                fill: true,
+                tension: 0.35
+            };
+        }).filter(ds => ds.data.some(v => v > 0));
+
+        const ctx = document.getElementById('tendLineChart');
+        if (!ctx) return;
+        if (tendLineChartInst) tendLineChartInst.destroy();
+        tendLineChartInst = new Chart(ctx, {
+            type: 'line',
+            data: { labels: weekLabels, datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { title: items => `Semana del ${items[0].label}` } }
+                },
+                scales: {
+                    x: {
+                        grid: { color: '#F0F0F0' },
+                        ticks: { font: { size: 11 }, maxRotation: 45 }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: '#F0F0F0' },
+                        ticks: { precision: 0, font: { size: 11 } },
+                        title: { display: true, text: 'Tramites', font: { size: 11 } }
+                    }
+                }
+            }
+        });
+
+        // Custom legend
+        const legendEl = document.getElementById('tend-line-legend');
+        if (legendEl) {
+            legendEl.innerHTML = datasets.map(ds => `
+                <div class="tend-legend-item">
+                    <span class="tend-legend-dot" style="background:${ds.borderColor}"></span>
+                    <span>${ds.label} - ${TYPE_NAMES[ds.label] || ds.label}</span>
+                </div>
+            `).join('');
+        }
+    })();
+
+    // ── CHART 2: Horizontal bar — Duracion promedio por responsable ───
+    (function renderDuracionChart() {
+        const respDur = {};
+        tiempos.forEach(t => {
+            if (!t.fecha_hora || (t.fecha_hora_fin && t.fecha_hora_fin !== '')) return;
+            const tramite = intake.find(i => i.id === t.id_tramite);
+            if (!tramite) return;
+            const resp = getUserNameShort(tramite.Responsible || 'Sin asignar');
+            const dias = Math.max(0, Math.floor((now - new Date(t.fecha_hora)) / 86400000));
+            if (!respDur[resp]) respDur[resp] = { sum: 0, count: 0 };
+            respDur[resp].sum += dias;
+            respDur[resp].count++;
+        });
+
+        const sorted = Object.entries(respDur)
+            .map(([name, { sum, count }]) => ({ name, avg: Math.round(sum / count) }))
+            .sort((a, b) => b.avg - a.avg)
+            .slice(0, 10);
+
+        const ctx = document.getElementById('tendDuracionChart');
+        if (!ctx) return;
+        if (tendDuracionChartInst) tendDuracionChartInst.destroy();
+
+        const barColors = sorted.map(r => r.avg > 30 ? '#A52422' : r.avg > 14 ? '#E88B00' : '#007B4F');
+
+        tendDuracionChartInst = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: sorted.map(r => r.name),
+                datasets: [{
+                    label: 'Dias promedio',
+                    data: sorted.map(r => r.avg),
+                    backgroundColor: barColors,
+                    borderRadius: 4,
+                    borderSkipped: false
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.x} dias promedio` } }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        grid: { color: '#F0F0F0' },
+                        ticks: { font: { size: 11 } },
+                        title: { display: true, text: 'Dias', font: { size: 11 } }
+                    },
+                    y: {
+                        grid: { display: false },
+                        ticks: { font: { size: 11 } }
+                    }
+                }
+            }
+        });
+    })();
+
+    // ── CHART 3: Stacked bar — Estados por Tipo ───────────────────────
+    (function renderEstadosChart() {
+        const types = Object.keys(TYPE_NAMES).filter(code =>
+            intake.some(i => extractTipo(i.Fase_del_Tramite) === code)
+        );
+
+        const estadoKeys = ['completado', 'en_progreso', 'iniciado', 'archivado', 'derivado'];
+        const estadoLabels = { completado: 'Completado', en_progreso: 'En Progreso', iniciado: 'Iniciado', archivado: 'Archivado', derivado: 'Derivado' };
+        const estadoColors = { completado: '#007B4F', en_progreso: '#E88B00', iniciado: '#1A3C6E', archivado: '#6B3A2A', derivado: '#A52422' };
+
+        const datasets = estadoKeys.map(key => ({
+            label: estadoLabels[key],
+            data: types.map(code =>
+                intake.filter(i => extractTipo(i.Fase_del_Tramite) === code && getEstadoTramite(i, tiempos) === key).length
+            ),
+            backgroundColor: estadoColors[key],
+            borderRadius: 3,
+            borderSkipped: false
+        })).filter(ds => ds.data.some(v => v > 0));
+
+        const ctx = document.getElementById('tendEstadosChart');
+        if (!ctx) return;
+        if (tendEstadosChartInst) tendEstadosChartInst.destroy();
+
+        tendEstadosChartInst = new Chart(ctx, {
+            type: 'bar',
+            data: { labels: types, datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'bottom',
+                        labels: { font: { size: 11 }, boxWidth: 12, padding: 12 }
+                    }
+                },
+                scales: {
+                    x: {
+                        stacked: true,
+                        grid: { display: false },
+                        ticks: { font: { size: 11 } }
+                    },
+                    y: {
+                        stacked: true,
+                        beginAtZero: true,
+                        grid: { color: '#F0F0F0' },
+                        ticks: { precision: 0, font: { size: 11 } }
+                    }
+                }
+            }
+        });
+    })();
 }
 
 /* ==========================================

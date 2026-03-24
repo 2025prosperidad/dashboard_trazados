@@ -1659,3 +1659,98 @@ body {
         font-size: 18px;
     }
 }
+
+/* ==========================================
+   PAGE: TENDENCIAS
+   ========================================== */
+.tend-chart-full {
+    margin-bottom: 16px;
+}
+
+.tend-chart-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.tend-chart-card {
+    background: var(--white);
+    border-radius: 12px;
+    padding: 20px 24px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    border: 1px solid var(--gray-200);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.tend-chart-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.tend-chart-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--navy);
+    margin: 0;
+}
+
+.tend-chart-subtitle {
+    font-size: 11px;
+    color: var(--gray-500);
+    margin: 2px 0 0 0;
+}
+
+.tend-canvas-wrap {
+    position: relative;
+    height: 220px;
+    width: 100%;
+}
+
+.tend-canvas-tall {
+    height: 280px;
+}
+
+.tend-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    align-items: center;
+}
+
+.tend-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--gray-700);
+}
+
+.tend-legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+    .tend-chart-row {
+        grid-template-columns: 1fr;
+    }
+
+    .tend-canvas-wrap {
+        height: 200px;
+    }
+
+    .tend-canvas-tall {
+        height: 220px;
+    }
+
+    .tend-legend {
+        gap: 6px 10px;
+    }
+}
