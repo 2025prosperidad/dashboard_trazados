@@ -6,9 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard Trazados Viales - Prefectura de Pichincha</title>
     <link rel="stylesheet" href="css/styles.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link href="https://unpkg.com/lucide-static@latest/font/lucide.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
@@ -27,17 +26,13 @@
                     <i class="lucide lucide-bar-chart-3"></i>
                     <span>Ranking</span>
                 </a>
-                <a href="#" class="nav-item" data-page="ranking-responsables" onclick="navigateTo('ranking-responsables')">
-                    <i class="lucide lucide-award"></i>
-                    <span>Ranking Responsables</span>
-                </a>
                 <a href="#" class="nav-item" data-page="productividad" onclick="navigateTo('productividad')">
                     <i class="lucide lucide-users"></i>
                     <span>Productividad</span>
                 </a>
                 <a href="#" class="nav-item" data-page="tipo" onclick="navigateTo('tipo')">
-                    <i class="lucide lucide-layers"></i>
-                    <span>Tramites</span>
+                    <i class="lucide lucide-pie-chart"></i>
+                    <span>Gestión</span>
                 </a>
                 <a href="#" class="nav-item" data-page="tendencias" onclick="navigateTo('tendencias')">
                     <i class="lucide lucide-trending-up"></i>
@@ -132,59 +127,96 @@
                 </div>
             </div>
 
-            <!-- Page: Ranking -->
-            <section class="page" id="page-ranking">
-                <div class="page-body">
-                    <div class="title-row">
-                        <h2 class="page-title">Ranking por Tipo de Tramite</h2>
-                        <div class="date-badge">
+            <!-- Page: Ranking (unificado tipo + responsables, estilo Looker Studio) -->
+            <section class="page page-looker" id="page-ranking">
+                <div class="page-body ls-page-body">
+                    <div class="title-row ls-title-row">
+                        <h2 class="page-title ls-page-title">Ranking — Tipos y responsables</h2>
+                        <div class="date-badge ls-date-badge">
                             <i class="lucide lucide-calendar"></i>
                             <span id="date-range">Cargando...</span>
                         </div>
                     </div>
-                    <div id="estado-badges" class="estado-badges-row">
-                        <!-- Filled by JS -->
+                    <div id="estado-badges" class="ls-scorecard-row">
+                        <!-- KPIs por estado (JS) -->
                     </div>
-                    <div class="content-row">
-                        <!-- Left Column: Ranking Cards -->
-                        <div class="ranking-col">
-                            <div id="ranking-cards">
-                                <!-- Filled by JS -->
-                            </div>
-                            <div class="ranking-total" id="ranking-total">
-                                <span class="total-label">TOTAL</span>
-                                <span class="total-value" id="total-value">0</span>
-                            </div>
+                    <!-- PRIMERA: Gráfica tipos -->
+                    <div class="ls-chart-card">
+                        <div class="ls-chart-head">
+                            <h3 class="ls-chart-title">Tipos de trámite vs cantidad</h3>
+                            <span class="ls-chart-legend-chip"><span class="ls-legend-swatch ls-swatch-blue"></span> Cantidad</span>
                         </div>
-                        <!-- Center Column: Table -->
-                        <div class="table-col">
-                            <table class="data-table">
+                        <div class="ls-canvas-wrap">
+                            <canvas id="rankingTipoHBarChart"></canvas>
+                        </div>
+                    </div>
+                    <!-- SEGUNDA: Tabla tipos -->
+                    <div class="ls-table-card">
+                        <div class="ls-chart-head">
+                            <h3 class="ls-chart-title">Totales por tipo de trámite según estado</h3>
+                        </div>
+                        <div class="ls-table-scroll">
+                            <table class="data-table ls-table" id="ranking-tipo-table">
                                 <thead>
                                     <tr>
-                                        <th>Tipo de Tramite</th>
-                                        <th>Cantidad</th>
+                                        <th class="ls-col-idx">#</th>
+                                        <th>Ámbito</th>
+                                        <th>Nombre</th>
+                                        <th class="ls-col-metric">Total</th>
+                                        <th class="ls-col-metric">En Proceso</th>
+                                        <th class="ls-col-metric">Finalizado</th>
+                                        <th class="ls-col-metric">Detenido</th>
+                                        <th class="ls-col-metric">Derivación</th>
+                                        <th class="ls-col-metric">Sol. Info</th>
+                                        <th class="ls-col-metric">Archivado</th>
                                     </tr>
                                 </thead>
-                                <tbody id="ranking-table-body">
-                                    <!-- Filled by JS -->
-                                </tbody>
-                                <tfoot>
+                                <tbody id="ranking-tipo-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <!-- TERCERA: Gráfica responsables -->
+                    <div class="ls-chart-card">
+                        <div class="ls-chart-head">
+                            <h3 class="ls-chart-title">Responsables vs cantidad (total)</h3>
+                            <span class="ls-chart-legend-chip"><span class="ls-legend-swatch ls-swatch-blue"></span> Cantidad</span>
+                        </div>
+                        <div class="ls-canvas-wrap">
+                            <canvas id="rankingRespHBarChart"></canvas>
+                        </div>
+                    </div>
+                    <!-- CUARTA: Tabla responsables -->
+                    <div class="ls-table-card">
+                        <div class="ls-chart-head">
+                            <h3 class="ls-chart-title">Responsables por tipo de trámite según estado</h3>
+                            <p class="ls-chart-sub">Agrupado por <strong>tipo de trámite</strong>. Quienes no tengan tipo identificado aparecen al final.</p>
+                        </div>
+                        <div class="ls-table-scroll">
+                            <table class="data-table ls-table" id="ranking-resp-table">
+                                <thead>
                                     <tr>
-                                        <td><strong>Gran total</strong></td>
-                                        <td id="grand-total">0</td>
+                                        <th class="ls-col-idx">#</th>
+                                        <th>Ámbito</th>
+                                        <th>Nombre</th>
+                                        <th class="ls-col-metric">Total</th>
+                                        <th class="ls-col-metric">En Proceso</th>
+                                        <th class="ls-col-metric">Finalizado</th>
+                                        <th class="ls-col-metric">Detenido</th>
+                                        <th class="ls-col-metric">Derivación</th>
+                                        <th class="ls-col-metric">Sol. Info</th>
+                                        <th class="ls-col-metric">Archivado</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ranking-resp-table-body"></tbody>
+                                <tfoot>
+                                    <tr class="ls-foot-row">
+                                        <td colspan="10" class="ls-foot-total-cell">
+                                            <strong>Total trámites (vista filtrada):</strong>
+                                            <span id="ls-foot-total">0</span>
+                                        </td>
                                     </tr>
                                 </tfoot>
                             </table>
-                        </div>
-                        <!-- Right Column: Donut Chart -->
-                        <div class="chart-col">
-                            <h3>Distribucion por Tipo</h3>
-                            <div class="donut-container">
-                                <canvas id="donutChart" width="200" height="200"></canvas>
-                            </div>
-                            <div id="donut-legend" class="donut-legend">
-                                <!-- Filled by JS -->
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -194,146 +226,150 @@
             <section class="page hidden" id="page-productividad">
                 <div class="page-body">
                     <div class="title-row">
-                        <h2 class="page-title">Productividad por Responsable</h2>
+                        <h2 class="page-title">Productividad y Tiempos</h2>
                     </div>
                     <div class="kpi-row" id="prod-kpis">
                         <!-- Filled by JS -->
                     </div>
-                    <div class="content-row">
-                        <div class="prod-table-col">
-                            <h3>Responsables</h3>
-                            <table class="data-table">
+                    <!-- Gráficos: Días promedio por tipo y por responsable -->
+                    <div class="ls-chart-card" style="margin-top:16px">
+                        <div class="ls-chart-head">
+                            <h3 class="ls-chart-title">Tipos de trámite vs días promedio</h3>
+                        </div>
+                        <div class="ls-canvas-wrap">
+                            <canvas id="prodTipoHBarChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="ls-chart-card" style="margin-top:16px">
+                        <div class="ls-chart-head">
+                            <h3 class="ls-chart-title">Responsables vs días promedio</h3>
+                        </div>
+                        <div class="ls-canvas-wrap">
+                            <canvas id="prodRespHBarChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Tabla de tiempos por tipo/responsable (estilo Ranking) -->
+                    <div class="ls-table-card" style="margin-top:16px">
+                        <div class="ls-chart-head">
+                            <h3 class="ls-chart-title">Tiempos por tipo de trámite y responsable</h3>
+                            <p class="ls-chart-sub">Fases activas medidas hasta hoy · T. DEX = días desde Sol. Oficio hasta inicio · T. Total = suma de todas las fases</p>
+                        </div>
+                        <div class="ls-table-scroll">
+                            <table class="data-table ls-table" id="prod-ls-table">
                                 <thead>
-                                    <tr>
-                                        <th>Responsable</th>
-                                        <th>Tramites</th>
-                                        <th>En Progreso</th>
-                                        <th>Completados</th>
+                                    <tr class="ls-head-row">
+                                        <th class="ls-col-idx">#</th>
+                                        <th class="ls-col-ambito">Ámbito</th>
+                                        <th class="ls-col-nombre">Nombre</th>
+                                        <th class="ls-col-metric">Total</th>
+                                        <th class="ls-col-metric" title="Tiempo Total: promedio de días sumando todas las fases del trámite">T. Total</th>
+                                        <th class="ls-col-metric" title="Tiempo DEX: días desde Fecha Sol. Oficio hasta el inicio del trámite (Start date)">T. DEX</th>
+                                        <th class="ls-col-metric">En Proceso</th>
+                                        <th class="ls-col-metric">Finalizado</th>
+                                        <th class="ls-col-metric">Detenido</th>
+                                        <th class="ls-col-metric">Derivación</th>
+                                        <th class="ls-col-metric">Sol. Info</th>
+                                        <th class="ls-col-metric">Archivado</th>
                                     </tr>
                                 </thead>
                                 <tbody id="prod-table-body">
                                     <!-- Filled by JS -->
                                 </tbody>
-                                <tfoot>
-                                    <tr>
-                                        <td><strong>Total</strong></td>
-                                        <td id="prod-total-fases">0</td>
-                                        <td id="prod-total-prog">0</td>
-                                        <td id="prod-total-comp">0</td>
-                                    </tr>
-                                </tfoot>
                             </table>
                         </div>
-                        <div class="prod-bars-col">
-                            <h3>Avance por Tipo</h3>
-                            <div id="prod-bars">
-                                <!-- Filled by JS -->
+                    </div>
+                    <!-- Charts de tiempos -->
+                    <div class="tend-chart-row" style="margin-top:24px">
+                        <div class="tend-chart-card">
+                            <div class="tend-chart-header">
+                                <div>
+                                    <h3 class="tend-chart-title">Duración Promedio por Responsable</h3>
+                                    <p class="tend-chart-subtitle">Días promedio por trámite asignado</p>
+                                </div>
+                            </div>
+                            <div class="tend-canvas-wrap">
+                                <canvas id="prodDuracionChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="tend-chart-card">
+                            <div class="tend-chart-header">
+                                <div>
+                                    <h3 class="tend-chart-title">Tiempo Promedio por Fase</h3>
+                                    <p class="tend-chart-subtitle">Días promedio que toma cada fase del trámite</p>
+                                </div>
+                            </div>
+                            <div class="tend-canvas-wrap">
+                                <canvas id="prodFaseDuracionChart"></canvas>
                             </div>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <!-- Page: Tipo de Tramite -->
+            <!-- Page: Gestión de Trámites — vista ejecutiva -->
             <section class="page hidden" id="page-tipo">
-                <div class="page-body">
-                    <div class="title-row">
-                        <h2 class="page-title">Tramites - Fases y Estados</h2>
-                        <span class="badge-green" id="tipos-badge">0 Tramites Activos</span>
+                <div class="page-body page-tipo-exec">
+                    <div class="title-row tipo-exec-title-row">
+                        <div>
+                            <h2 class="page-title">Gestión de Trámites</h2>
+                            <p class="tipo-exec-lede">Vista gerencial: métricas, distribución y carga por fase. El detalle expediente a expediente queda al final, desplegable.</p>
+                        </div>
+                        <span class="badge-green" id="tipos-badge">0 trámites</span>
                     </div>
                     <div class="kpi-row" id="tipo-kpis">
                         <!-- Filled by JS -->
                     </div>
-                    <div class="content-row">
-                        <div class="tipo-table-col">
+                    <div class="tipo-exec-grid-2">
+                        <div class="chart-card tipo-exec-panel">
+                            <h3>Distribución por Estado</h3>
+                            <p class="chart-subtitle">Distribución de los 6 estados oficiales según filtros activos</p>
+                            <div class="tipo-donut-wrap">
+                                <canvas id="tipoEstadoDonut" aria-label="Gráfico de dona por estado"></canvas>
+                            </div>
+                            <div class="tipo-donut-legend" id="tipo-donut-legend"></div>
+                        </div>
+                        <div class="chart-card tipo-exec-panel">
+                            <h3>Volumen por tipo</h3>
+                            <p class="chart-subtitle">Comparación relativa entre tipos de trámite</p>
+                            <div id="tipo-bars" class="tipo-bars tipo-bars-exec">
+                                <!-- Filled by JS -->
+                            </div>
+                            <div class="chart-divider"></div>
+                            <div class="chart-summary" id="tipo-summary"></div>
+                        </div>
+                    </div>
+                    <div class="chart-card tipo-exec-panel tipo-exec-panel--wide">
+                        <h3>Desglose por tipo de trámite</h3>
+                        <p class="chart-subtitle">Cada tarjeta resume volumen y reparto por estado operativo</p>
+                        <div class="exec-type-cards" id="tipo-exec-cards"></div>
+                    </div>
+                    <div class="chart-card tipo-exec-panel tipo-exec-panel--wide">
+                        <h3>Fases con mayor carga</h3>
+                        <p class="chart-subtitle">Donde se concentra el trabajo en la vista filtrada (top 12)</p>
+                        <div id="tipo-fase-load-bars" class="tipo-fase-load"></div>
+                    </div>
+                    <details class="tipo-details-table">
+                        <summary class="tipo-details-summary">
+                            <span class="tipo-details-summary-title">Listado detallado (expedientes)</span>
+                            <span class="tipo-details-count" id="tipo-details-count">—</span>
+                        </summary>
+                        <div class="tipo-table-col tipo-table-inner">
                             <table class="data-table tipo-table">
                                 <thead>
                                     <tr>
-                                        <th>Codigo</th>
+                                        <th>Tipo</th>
                                         <th>Solicitante</th>
                                         <th>Fases</th>
-                                        <th>Fase Actual</th>
+                                        <th>Fase actual</th>
                                         <th>Responsable</th>
                                         <th>Estado</th>
                                     </tr>
                                 </thead>
-                                <tbody id="tipo-table-body">
-                                    <!-- Filled by JS -->
-                                </tbody>
+                                <tbody id="tipo-table-body"></tbody>
                             </table>
                         </div>
-                        <div class="tipo-chart-col">
-                            <div class="chart-card">
-                                <h3>Tramites por Tipo</h3>
-                                <p class="chart-subtitle">Cantidad de tramites activos por tipo</p>
-                                <div id="tipo-bars">
-                                    <!-- Filled by JS -->
-                                </div>
-                                <div class="chart-divider"></div>
-                                <div class="chart-summary" id="tipo-summary">
-                                    <!-- Filled by JS -->
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Page: Ranking Responsables -->
-            <section class="page hidden" id="page-ranking-responsables">
-                <div class="page-body">
-                    <div class="title-row">
-                        <h2 class="page-title">Ranking Responsables</h2>
-                        <div class="status-selector-row">
-                            <button class="btn-status-filter active" data-status="total" onclick="setRankingResponsablesStatus('total')">Total</button>
-                            <button class="btn-status-filter" data-status="en_progreso" onclick="setRankingResponsablesStatus('en_progreso')">En Progreso</button>
-                            <button class="btn-status-filter" data-status="completado" onclick="setRankingResponsablesStatus('completado')">Completados</button>
-                            <button class="btn-status-filter" data-status="archivado" onclick="setRankingResponsablesStatus('archivado')">Archivados</button>
-                        </div>
-                    </div>
-                    
-                    <div class="content-row">
-                        <!-- Left Column: Ranking Cards -->
-                        <div class="ranking-col">
-                            <div id="ranking-resp-cards">
-                                <!-- Filled by JS -->
-                            </div>
-                            <div class="ranking-total" id="ranking-resp-total-box">
-                                <span class="total-label">TOTAL</span>
-                                <span class="total-value" id="ranking-resp-total-value">0</span>
-                            </div>
-                        </div>
-                        <!-- Center Column: Table -->
-                        <div class="table-col ranking-resp-table-col">
-                            <table class="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>Responsable</th>
-                                        <th style="text-align:center">Cantidad</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="ranking-resp-table-body">
-                                    <!-- Filled by JS -->
-                                </tbody>
-                                <tfoot>
-                                    <tr>
-                                        <td><strong>Gran total</strong></td>
-                                        <td id="ranking-resp-grand-total" style="text-align:center">0</td>
-                                    </tr>
-                                </tfoot>
-                            </table>
-                        </div>
-                        <!-- Right Column: Donut Chart -->
-                        <div class="chart-col">
-                            <h3>Distribucion</h3>
-                            <div class="donut-container">
-                                <canvas id="donutChartResp" width="200" height="200"></canvas>
-                            </div>
-                            <div id="donut-legend-resp" class="donut-legend">
-                                <!-- Filled by JS -->
-                            </div>
-                        </div>
-                    </div>
+                    </details>
                 </div>
             </section>
 
@@ -367,31 +403,32 @@
                         </div>
                     </div>
 
-                    <!-- Charts 2 & 3: Two columns -->
-                    <div class="tend-chart-row">
-                        <!-- Chart 2: Duration per responsible -->
-                        <div class="tend-chart-card">
-                            <div class="tend-chart-header">
-                                <div>
-                                    <h3 class="tend-chart-title">Duracion Promedio por Responsable</h3>
-                                    <p class="tend-chart-subtitle">Dias promedio activo en tramites (fases sin cerrar)</p>
-                                </div>
-                            </div>
-                            <div class="tend-canvas-wrap">
-                                <canvas id="tendDuracionChart"></canvas>
-                            </div>
-                        </div>
-
-                        <!-- Chart 3: Stacked bar - estado por tipo -->
+                    <!-- Chart 2: Full width - Stacked bar - estado por tipo (todos los tipos) -->
+                    <div class="tend-chart-full">
                         <div class="tend-chart-card">
                             <div class="tend-chart-header">
                                 <div>
                                     <h3 class="tend-chart-title">Estados por Tipo de Tramite</h3>
-                                    <p class="tend-chart-subtitle">Distribucion de estados por cada tipo</p>
+                                    <p class="tend-chart-subtitle">Distribucion de los 6 estados oficiales por cada tipo de trámite</p>
                                 </div>
                             </div>
-                            <div class="tend-canvas-wrap">
+                            <div class="tend-canvas-wrap tend-canvas-tall">
                                 <canvas id="tendEstadosChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Chart 3: Trámites Derivados por Institución -->
+                    <div class="tend-chart-full">
+                        <div class="tend-chart-card">
+                            <div class="tend-chart-header">
+                                <div>
+                                    <h3 class="tend-chart-title">Trámites Derivados por Institución</h3>
+                                    <p class="tend-chart-subtitle">Agrupados con los valores de derivación del trámite y los catálogos asociados (categoría 1 y categoría 2)</p>
+                                </div>
+                            </div>
+                            <div id="tend-derivados-container" class="tipo-fase-load" style="min-height:60px">
+                                <!-- Filled by JS -->
                             </div>
                         </div>
                     </div>
@@ -404,14 +441,14 @@
                     <div class="back-row">
                         <a href="#" onclick="navigateTo('tipo'); return false;">
                             <i class="lucide lucide-arrow-left"></i>
-                            Volver a Tramites
+                            Volver a Gestión
                         </a>
                     </div>
                     <div class="title-row">
                         <div class="detail-title-left">
-                            <span class="type-badge-lg" id="detail-code">TV</span>
+                            <span class="type-badge-lg" id="detail-code">Tipo</span>
                             <h2 class="page-title" id="detail-name">Trazado Vial</h2>
-                            <span class="phase-badge" id="detail-phase">Fase Actual: TV-03</span>
+                            <span class="phase-badge" id="detail-phase">Fase actual</span>
                         </div>
                         <span class="status-badge" id="detail-status">
                             <span class="status-dot"></span> En Progreso
@@ -463,17 +500,13 @@
             <i class="lucide lucide-bar-chart-3"></i>
             <span>Ranking</span>
         </a>
-        <a href="#" class="mobile-nav-item" data-page="ranking-responsables" onclick="navigateTo('ranking-responsables')">
-            <i class="lucide lucide-award"></i>
-            <span>R. Resp.</span>
-        </a>
         <a href="#" class="mobile-nav-item" data-page="productividad" onclick="navigateTo('productividad')">
             <i class="lucide lucide-users"></i>
             <span>Prod.</span>
         </a>
         <a href="#" class="mobile-nav-item" data-page="tipo" onclick="navigateTo('tipo')">
-            <i class="lucide lucide-layers"></i>
-            <span>Tramites</span>
+            <i class="lucide lucide-pie-chart"></i>
+            <span>Gestión</span>
         </a>
         <a href="#" class="mobile-nav-item" data-page="tendencias" onclick="navigateTo('tendencias')">
             <i class="lucide lucide-trending-up"></i>
@@ -571,8 +604,9 @@
         <p>Cargando datos...</p>
     </div>
 
-    <script src="js/api.js"></script>
-    <script src="js/app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="js/api.js?v=20260413b"></script>
+    <script src="js/app.js?v=20260413b"></script>
 </body>
 
 </html>

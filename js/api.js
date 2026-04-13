@@ -5,7 +5,9 @@
 
 const API_CONFIG = {
     endpoint: 'https://script.google.com/macros/s/AKfycbwGgHmLz3lTpYZ0eiinmOz8Fgmdnhq36s9mUlYDLjxbedCb1PRx_uBJ3WbLFhTec4rj/exec',
-    apiKey: 'ortegon-2025-CAMBIA-ESTO'
+    apiKey: 'ortegon-2025-CAMBIA-ESTO',
+    /** Evita pantalla de carga infinita si la red o GAS no responden */
+    timeoutMs: 60000
 };
 
 /**
@@ -17,7 +19,7 @@ const API_CONFIG = {
 const USUARIOS_BD2 = [
     { ID_Usuario: 1, Nombre: 'BENITEZ CARRILLO SONIA ELIZABETH', Rol: 'Ventanilla', Email: 'sbenitez@pichincha.gob.ec' },
     { ID_Usuario: 4, Nombre: 'ASIMBAYA SOCASI KATTY VANESSA', Rol: 'Tecnico', Email: 'asocaci@pichincha.gob.ec' },
-    { ID_Usuario: 5, Nombre: 'GARCIA CANDO CRISTINA PAOLA', Rol: 'Tecnico', Email: 'cgarcia@pichincha.gob.ec' },
+    { ID_Usuario: 5, Nombre: 'GARCIA CANDO CRISTINA PAOLA', Rol: 'Tecnico', Email: 'cpgarcia@pichincha.gob.ec' },
     { ID_Usuario: 6, Nombre: 'GUALPA DIAZ CRISTIAN PATRICIO', Rol: 'Tecnico', Email: 'cgualpa@pichincha.gob.ec' },
     { ID_Usuario: 7, Nombre: 'VARGAS BARRERO EVELYN LORENA', Rol: 'Tecnico', Email: 'evargas@pichincha.gob.ec' },
     { ID_Usuario: 8, Nombre: 'SILVA CISNEROS SANTIAGO DAVID', Rol: 'Tecnico', Email: 'ssilva@pichincha.gob.ec' },
@@ -35,6 +37,13 @@ const USUARIOS_BD2 = [
 /**
  * Fetch data from API Ortegon v2.0
  */
+function fetchWithTimeout(url, options = {}) {
+    const ms = API_CONFIG.timeoutMs || 25000;
+    const ctrl = new AbortController();
+    const id = setTimeout(() => ctrl.abort(), ms);
+    return fetch(url, { ...options, signal: ctrl.signal }).finally(() => clearTimeout(id));
+}
+
 async function apiRequest(action, params = {}) {
     const queryParams = new URLSearchParams({
         action: action,
@@ -45,7 +54,7 @@ async function apiRequest(action, params = {}) {
     const url = `${API_CONFIG.endpoint}?${queryParams.toString()}`;
 
     try {
-        const response = await fetch(url, {
+        const response = await fetchWithTimeout(url, {
             method: 'GET',
             redirect: 'follow'
         });
@@ -62,7 +71,8 @@ async function apiRequest(action, params = {}) {
 
         return data;
     } catch (error) {
-        console.error(`API Error (${action}):`, error);
+        const name = error && error.name === 'AbortError' ? 'Timeout' : (error && error.name);
+        console.error(`API Error (${action}):`, name || error, error && error.message);
         throw error;
     }
 }
@@ -72,23 +82,88 @@ async function getData(sheetName) {
 }
 
 /**
+ * Exporta filas de una hoja; si falla (hoja no en GAS o nombre distinto), devuelve [].
+ * Hojas Equipos / Usuario_equipo (BD1): Id_Equipos = código fase (TV-01); ID_Usuario (gmail) + ID_Equipo en Usuario_equipo.
+ */
+async function getSheetRows(sheetName) {
+    try {
+        const res = await getData(sheetName);
+        return Array.isArray(res?.data) ? res.data : [];
+    } catch (e) {
+        console.warn('[API] Hoja no cargada o no configurada:', sheetName, e.message || e);
+        return [];
+    }
+}
+
+/**
+ * Si la primera variante del nombre devuelve vacío, prueba alias (espacios, mayúsculas).
+ * Las hojas Der_Cat1 / Der_Cat2 deben estar permitidas en el script GAS (action export).
+ */
+async function getSheetRowsFirstNonEmpty(names) {
+    let last = [];
+    for (const name of names) {
+        const rows = await getSheetRows(name);
+        last = rows;
+        if (Array.isArray(rows) && rows.length > 0) return rows;
+    }
+    return Array.isArray(last) ? last : [];
+}
+
+/**
  * Fetch all required dashboard data
  */
 async function fetchAllDashboardData() {
     try {
-        const [intakeData, fasesData, tiemposData, tipoData] = await Promise.all([
-            getData('Intake_form'),
-            getData('Fases_Tramite'),
-            getData('Tiempos_Fases'),
-            getData('Tipo_Tramite')
-        ]);
+        // Llamadas secuenciales para no saturar el GAS (evita AbortError por timeout)
+        const intakeData  = await getData('Intake_form');
+        const fasesData   = await getData('Fases_Tramite');
+        const tiemposData = await getData('Tiempos_Fases');
+        const tipoData    = await getData('Tipo_Tramite');
+        const equiposRows = await getSheetRows('Equipos');
+        const ueRowsAlt   = await getSheetRows('Usuario_equipo');
+        const derCat1Rows = await getSheetRows('Der_Cat1');
+        const derCat2Rows = await getSheetRows('Der_Cat2');
+
+        const asArray = (res) => (Array.isArray(res?.data) ? res.data : []);
+        let usuarioEquipo = ueRowsAlt;
+        if (!usuarioEquipo.length) {
+            usuarioEquipo = await getSheetRows('Usuario_Equipo');
+        }
+
+        let der1 = Array.isArray(derCat1Rows) ? derCat1Rows : [];
+        let der2 = Array.isArray(derCat2Rows) ? derCat2Rows : [];
+        if (!der1.length) {
+            der1 = await getSheetRowsFirstNonEmpty(['Der Cat1', 'DER_CAT1', 'DerCat1']);
+        }
+        if (!der2.length) {
+            der2 = await getSheetRowsFirstNonEmpty(['Der Cat2', 'DER_CAT2', 'DerCat2']);
+        }
+
+        // Segunda tanda: usuarios (no critico, carga despues)
+        const usuariosRows = await getSheetRows('Usuarios');
+
+        // Merge: API users take priority; fill gaps with USUARIOS_BD2 hardcoded list
+        const apiUsers = Array.isArray(usuariosRows) ? usuariosRows : [];
+        const apiEmails = new Set(apiUsers.map(u => {
+            const em = u['Email (Ejemplo)'] || u.Email || u.email || '';
+            return String(em).trim().toLowerCase();
+        }).filter(Boolean));
+        const bd2Complement = USUARIOS_BD2.filter(u => {
+            const em = String(u.Email || '').trim().toLowerCase();
+            return em && !apiEmails.has(em);
+        });
+        const usuarios = [...apiUsers, ...bd2Complement];
 
         return {
-            intake: intakeData.data || [],
-            fases: fasesData.data || [],
-            tiempos: tiemposData.data || [],
-            tipos: tipoData.data || [],
-            usuarios: USUARIOS_BD2
+            intake: asArray(intakeData),
+            fases: asArray(fasesData),
+            tiempos: asArray(tiemposData),
+            tipos: asArray(tipoData),
+            equipos: Array.isArray(equiposRows) ? equiposRows : [],
+            usuarioEquipo,
+            usuarios,
+            derCat1: der1,
+            derCat2: der2
         };
     } catch (error) {
         console.error('Error fetching dashboard data:', error);
@@ -120,8 +195,9 @@ function getFallbackData() {
             { Codigo: 'CV-01', Tipo: 'CV', Nombre_Fase: 'Informe de Certificacion Vial', Orden: 1, Avance: 100 },
             { Codigo: 'RV-01', Tipo: 'RV', Nombre_Fase: 'Informe de Replanteo Vial', Orden: 1, Avance: 100 },
             { Codigo: 'STP-01', Tipo: 'STP', Nombre_Fase: 'Informe de Seccion Transversal Proyectada', Orden: 1, Avance: 100 },
-            { Codigo: 'CEV-01', Tipo: 'CEV', Nombre_Fase: 'Informe de Competencia y Pertinencia', Orden: 1, Avance: 50 },
-            { Codigo: 'CEV-02', Tipo: 'CEV', Nombre_Fase: 'Informe de Colocacion del Eje Vial', Orden: 2, Avance: 100 },
+            { Codigo: 'CEV-01', Tipo: 'CEV', Nombre_Fase: 'Informe de Competencia', Orden: 1, Avance: 33.33 },
+            { Codigo: 'CEV-02', Tipo: 'CEV', Nombre_Fase: 'Informe de Pertinencia', Orden: 2, Avance: 66.67 },
+            { Codigo: 'CEV-03', Tipo: 'CEV', Nombre_Fase: 'Informe de Colocacion del Eje Vial', Orden: 3, Avance: 100 },
             { Codigo: 'CI-01', Tipo: 'CI', Nombre_Fase: 'Informe de Colocacion de Infraestructura', Orden: 1, Avance: 100 },
             { Codigo: 'DCP-01', Tipo: 'DCP', Nombre_Fase: 'Informe de Factibilidad para Declaratoria de Camino Publico', Orden: 1, Avance: 100 }
         ],
@@ -139,6 +215,23 @@ function getFallbackData() {
             { Codigo: 'CI', Nombre: 'Colocacion de Infraestructura' },
             { Codigo: 'DCP', Nombre: 'Factibilidad Declaratoria Camino Publico' }
         ],
-        usuarios: USUARIOS_BD2
+        /** Mismo modelo que BD1: Id_Equipos = código de fase; Usuario_equipo usa gmail + ID_Equipo */
+        equipos: [
+            { Id_Equipos: 'TV-01', Nombre: 'Trazado Vial - Competencia', contador: 4 },
+            { Id_Equipos: 'RV-01', Nombre: 'Replanteo', contador: 1 }
+        ],
+        usuarioEquipo: [
+            { 'ID_Usuario (gmail)': 'asocaci@pichincha.gob.ec', ID_Equipo: 'TV-01' },
+            { 'ID_Usuario (gmail)': 'ssilva@pichincha.gob.ec', ID_Equipo: 'RV-01' }
+        ],
+        usuarios: USUARIOS_BD2,
+        derCat1: [
+            { ID: 1, Nombre: 'Gobierno Autónomo Descentralizado' },
+            { ID: 2, Nombre: 'Entidad pública nacional' }
+        ],
+        derCat2: [
+            { ID: 1, Nombre: 'Municipio de Quito' },
+            { ID: 2, Nombre: 'Ministerio de Obras Públicas' }
+        ]
     };
 }
