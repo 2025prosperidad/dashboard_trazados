@@ -1430,6 +1430,8 @@ function renderProductividadPage() {
 
         const canvasProd = document.getElementById('prodTipoHBarChart');
         if (canvasProd) {
+            // Destruir cualquier instancia anterior — incluye el caso donde prodTipoHBarInst quedó null
+            try { Chart.getChart(canvasProd)?.destroy(); } catch (e) {}
             try {
                 const opts = lsHBarOptions();
                 opts.plugins.legend = {
@@ -1443,6 +1445,13 @@ function renderProductividadPage() {
                         font: { size: 11 }
                     }
                 };
+                opts.plugins.subtitle = {
+                    display: true,
+                    text: `${intake.length} trámite${intake.length !== 1 ? 's' : ''} en el rango seleccionado`,
+                    color: '#5F6368',
+                    font: { size: 11 },
+                    padding: { bottom: 8 }
+                };
                 opts.plugins.tooltip.callbacks = {
                     title: items => TYPE_NAMES[tipoList[items[0].dataIndex]] || tipoList[items[0].dataIndex],
                     label: c => {
@@ -1453,7 +1462,7 @@ function renderProductividadPage() {
                         if (c.datasetIndex > 0) {
                             const fasePos = c.datasetIndex - 1;
                             const fases = tipoFasesMap[tipo] || [];
-                            if (fases[fasePos]) segName = fases[fasePos].name; // campo normalizado
+                            if (fases[fasePos]) segName = fases[fasePos].name;
                         }
                         return ` ${segName}: ${val}d`;
                     }
@@ -1495,6 +1504,7 @@ function renderProductividadPage() {
 
         const canvasResp = document.getElementById('prodRespHBarChart');
         if (canvasResp) {
+            try { Chart.getChart(canvasResp)?.destroy(); } catch (e) {}
             try {
                 const opts2 = lsHBarOptions();
                 opts2.plugins.tooltip.callbacks = {
