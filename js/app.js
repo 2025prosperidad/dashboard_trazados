@@ -240,8 +240,9 @@ function extractTipo(faseCode) {
 }
 
 function getEstadoTramite(item, tiempos) {
-    // Check Estado field first (mapeo a los 6 estados oficiales)
-    const estadoRaw = (item.Estado || '').toLowerCase().trim();
+    // ESTADO_ACTUAL (sincronizado desde AppSheet via Apps Script) tiene prioridad;
+    // si aún está vacío, se cae al campo Estado original como respaldo.
+    const estadoRaw = (item.ESTADO_ACTUAL || item.Estado || '').toLowerCase().trim();
     if (estadoRaw.includes('archivado') || item.Archivado) return 'archivado';
     if (estadoRaw.includes('derivaci') || estadoRaw.includes('derivad')) return 'en_derivacion';
     if (estadoRaw.includes('detenid')) return 'detenido';
@@ -549,7 +550,7 @@ function getFilteredIntake() {
 
     // Filtros Nuevos: Ubicacion
     if (filtroCanton !== 'Todos') {
-        data = data.filter(i => (i[' CANTÓN'] || '').trim() === filtroCanton);
+        data = data.filter(i => (i[' CANTÓN'] || i['CANTÓN'] || i['CANTON'] || '').trim() === filtroCanton);
     }
     if (filtroParroquia !== 'Todos') {
         data = data.filter(i => (i.PARROQUIA || '').trim() === filtroParroquia);
@@ -643,7 +644,7 @@ function buildFilters() {
 
     const fasesUnicas = [...new Set(dashboardData.intake.map(i => i.Fase_del_Tramite).filter(Boolean))].sort();
     const tiposUnicos = [...new Set(dashboardData.intake.map(i => extractTipo(i.Fase_del_Tramite)).filter(Boolean))].sort();
-    const cantonesUnicos = [...new Set(dashboardData.intake.map(i => (i[' CANTÓN'] || '').trim()).filter(Boolean))].sort();
+    const cantonesUnicos = [...new Set(dashboardData.intake.map(i => (i[' CANTÓN'] || i['CANTÓN'] || i['CANTON'] || '').trim()).filter(Boolean))].sort();
     const parroquiasUnicas = [...new Set(dashboardData.intake.map(i => (i.PARROQUIA || '').trim()).filter(Boolean))].sort();
 
     // Populate Tipo filter
@@ -966,9 +967,9 @@ function renderAllPages() {
    PAGE 1: RANKING UNIFICADO (tipos + responsables, estilo Looker Studio)
    ========================================== */
 function renderRankingPage() {
+    if (!dashboardData) return;
     const intake = getFilteredIntake();
     const { tiempos } = dashboardData;
-    if (!dashboardData) return;
 
     destroyRankingCharts();
 
@@ -1216,13 +1217,11 @@ function renderRankingPage() {
    PAGE 2: PRODUCTIVIDAD POR USUARIO (con tiempos)
    ========================================== */
 let prodTipoHBarInst = null;
-let prodRespHBarInst = null;
 let prodDuracionChartInst = null;
 let prodFaseDuracionChartInst = null;
 
 function renderProductividadPage() {
     if (prodTipoHBarInst) { try { prodTipoHBarInst.destroy(); } catch (e) {} prodTipoHBarInst = null; }
-    if (prodRespHBarInst) { try { prodRespHBarInst.destroy(); } catch (e) {} prodRespHBarInst = null; }
     if (prodDuracionChartInst) { try { prodDuracionChartInst.destroy(); } catch (e) {} prodDuracionChartInst = null; }
     if (prodFaseDuracionChartInst) { try { prodFaseDuracionChartInst.destroy(); } catch (e) {} prodFaseDuracionChartInst = null; }
 
@@ -1483,53 +1482,6 @@ function renderProductividadPage() {
             }
         }
 
-        // ── Chart: Responsables vs días promedio ──
-        // Promedio de días por responsable a través de todos sus trámites (sin importar tipo)
-        const respDiasMap = {};
-        intake.forEach(item => {
-            const resp = item.Responsible || 'Sin asignar';
-            if (!respDiasMap[resp]) respDiasMap[resp] = { totalDias: 0, count: 0 };
-            respDiasMap[resp].totalDias += tramiteDias[item.id] || 0;
-            respDiasMap[resp].count++;
-        });
-
-        const respChartData = Object.entries(respDiasMap)
-            .map(([resp, s]) => ({
-                name: getUserNameShort(resp),
-                prom: s.count > 0 ? Math.round(s.totalDias / s.count) : 0
-            }))
-            .filter(d => d.prom > 0)
-            .sort((a, b) => b.prom - a.prom)
-            .slice(0, 14);
-
-        const canvasResp = document.getElementById('prodRespHBarChart');
-        if (canvasResp) {
-            try { Chart.getChart(canvasResp)?.destroy(); } catch (e) {}
-            try {
-                const opts2 = lsHBarOptions();
-                opts2.plugins.tooltip.callbacks = {
-                    label: c => ` ${c.parsed.x} días promedio`
-                };
-                opts2.scales.x.title = { display: true, text: 'Días promedio por trámite', color: '#5F6368', font: { size: 11 } };
-                prodRespHBarInst = new Chart(canvasResp.getContext('2d'), {
-                    type: 'bar',
-                    data: {
-                        labels: respChartData.map(d => d.name),
-                        datasets: [{
-                            label: 'Prom. Días',
-                            data: respChartData.map(d => d.prom),
-                            backgroundColor: '#1A3C6E',
-                            borderRadius: 2,
-                            borderSkipped: false,
-                            maxBarThickness: 22
-                        }]
-                    },
-                    options: opts2
-                });
-            } catch (e) {
-                console.error('Prod resp chart:', e);
-            }
-        }
     }
 
     // ── Tabla agrupada por tipo (estilo Ranking) ──
@@ -2248,7 +2200,10 @@ function renderTendenciasPage() {
 
     const completados = intake.filter(i => getEstadoTramite(i, tiempos) === 'finalizado').length;
     const enProgreso = intake.filter(i => getEstadoTramite(i, tiempos) === 'en_proceso').length;
-    const tiemposAbiertos = tiempos.filter(t => t.fecha_hora && (!t.fecha_hora_fin || t.fecha_hora_fin === ''));
+    const intakeIdsSet = new Set(intake.map(i => i.id));
+    const tiemposAbiertos = tiempos.filter(t =>
+        intakeIdsSet.has(t.id_tramite) && t.fecha_hora && (!t.fecha_hora_fin || t.fecha_hora_fin === '')
+    );
     const duraciones = tiemposAbiertos.map(t => {
         const start = new Date(t.fecha_hora);
         return isNaN(start) ? 0 : Math.floor((now - start) / 86400000);
