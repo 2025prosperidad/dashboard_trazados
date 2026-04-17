@@ -981,6 +981,7 @@ function navigateTo(page, detail = null) {
     else if (page === 'productividad') document.title = 'Productividad - Dashboard Trazados Viales';
     else if (page === 'tipo') document.title = 'Gestión de Trámites - Dashboard Trazados Viales';
     else if (page === 'tendencias') document.title = 'Tendencias - Dashboard Trazados Viales';
+    else if (page === 'territorialidad') document.title = 'Territorialidad - Dashboard Trazados Viales';
 
     // Close mobile menu if open
     const overlay = document.getElementById('mobile-filter-overlay');
@@ -1005,6 +1006,13 @@ function navigateTo(page, detail = null) {
             });
         });
     }
+    if (page === 'territorialidad') {
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                try { renderTerritorialidadPage(); } catch (e) { /* ignore */ }
+            });
+        });
+    }
 
     // Scroll to top on page change
     const mainContent = document.querySelector('.main-content');
@@ -1022,6 +1030,7 @@ function renderAllPages() {
     renderProductividadPage();
     renderTipoPage();
     renderTendenciasPage();
+    renderTerritorialidadPage();
 }
 
 /* ==========================================
@@ -2203,6 +2212,13 @@ function renderDetallePage(tramiteId) {
 let tendLineChartInst = null;
 let tendEstadosChartInst = null;
 
+// Chart instances for Territorialidad
+let territEstadoDurInst = null;
+let territCantonDurInst = null;
+let territCantonTipoInst = null;
+let territParroquiaInst = null;
+let territCantonEstadoInst = null;
+
 function renderTendenciasPage() {
     const intake = getFilteredIntake();
     const { tiempos } = dashboardData;
@@ -2475,6 +2491,414 @@ function renderTendenciasPage() {
             });
         });
         container.innerHTML = html;
+    })();
+}
+
+/* ==========================================
+   PAGE 6: TERRITORIALIDAD
+   ========================================== */
+function renderTerritorialidadPage() {
+    if (!dashboardData) return;
+    const intake = getFilteredIntake();
+    const { tiempos } = dashboardData;
+
+    const now = new Date();
+
+    // Normaliza nombre de cantón (quita espacio inicial, upper-case)
+    const getCanton = (i) => (i[' CANTÓN'] || i['CANTÓN'] || i['CANTON'] || '').toString().trim();
+    const getParroquia = (i) => (i.PARROQUIA || '').toString().trim();
+
+    // Días "vividos" por el trámite: si tiene Compliance date => cerrado (días a ese momento),
+    // si no => días desde Start date al día de hoy.
+    const diasVivos = (i) => {
+        const ini = parseDateOnly(i['Start date']);
+        if (!ini) return null;
+        const fin = parseDateOnly(i['Compliance date']) || now;
+        return Math.max(0, Math.floor((fin - ini) / 86400000));
+    };
+
+    // Días DEX: desde Fecha_Sol_Oficio a Start date
+    const diasDex = (i) => {
+        const solOf = parseDateOnly(i.Fecha_Sol_Oficio);
+        const start = parseDateOnly(i['Start date']);
+        if (!solOf || !start) return null;
+        return Math.max(0, Math.floor((start - solOf) / 86400000));
+    };
+
+    // ── KPIs ──────────────────────────────────────────────────────────
+    const cantonesActivos = new Set(intake.map(getCanton).filter(Boolean));
+    const parroquiasActivas = new Set(intake.map(getParroquia).filter(Boolean));
+
+    const countPorCanton = {};
+    intake.forEach(i => {
+        const c = getCanton(i);
+        if (!c) return;
+        countPorCanton[c] = (countPorCanton[c] || 0) + 1;
+    });
+    const lider = Object.entries(countPorCanton).sort((a, b) => b[1] - a[1])[0];
+    const cantonLiderNombre = lider ? lider[0] : '—';
+    const cantonLiderCount = lider ? lider[1] : 0;
+
+    const duraciones = intake.map(diasVivos).filter(v => v !== null);
+    const promDias = duraciones.length > 0
+        ? Math.round(duraciones.reduce((s, v) => s + v, 0) / duraciones.length)
+        : 0;
+
+    const kpiContainer = document.getElementById('territ-kpis');
+    if (kpiContainer) {
+        kpiContainer.innerHTML = `
+            <div class="kpi-card" style="border-top-color:#1A3C6E">
+                <span class="kpi-label">Cantones Activos</span>
+                <span class="kpi-value" style="color:#1A3C6E">${cantonesActivos.size.toLocaleString()}</span>
+            </div>
+            <div class="kpi-card" style="border-top-color:#007B4F">
+                <span class="kpi-label">Parroquias Activas</span>
+                <span class="kpi-value" style="color:#007B4F">${parroquiasActivas.size.toLocaleString()}</span>
+            </div>
+            <div class="kpi-card" style="border-top-color:#E88B00">
+                <span class="kpi-label">Cantón Líder</span>
+                <span class="kpi-value" style="color:#E88B00;font-size:1.4rem" title="${escapeHtml(cantonLiderNombre)}">${escapeHtml(cantonLiderNombre.length > 18 ? cantonLiderNombre.slice(0, 16) + '…' : cantonLiderNombre)}</span>
+                <span class="kpi-label" style="margin-top:2px">${cantonLiderCount.toLocaleString()} trámites</span>
+            </div>
+            <div class="kpi-card" style="border-top-color:#A52422">
+                <span class="kpi-label">Prom. Días por Trámite</span>
+                <span class="kpi-value" style="color:#A52422">${promDias.toLocaleString()}</span>
+            </div>
+        `;
+    }
+
+    const badge = document.getElementById('territ-badge');
+    if (badge) badge.textContent = `${intake.length.toLocaleString()} trámites`;
+
+    // ── CHART 1: Tiempo Promedio por Estado (ESTADO_ACTUAL) ────────────
+    (function renderEstadoDuracion() {
+        const agg = {};
+        intake.forEach(i => {
+            const key = getEstadoTramite(i, tiempos);
+            const d = diasVivos(i);
+            if (d === null) return;
+            if (!agg[key]) agg[key] = { sum: 0, count: 0 };
+            agg[key].sum += d;
+            agg[key].count++;
+        });
+
+        const rows = EXEC_STATE_SEGMENTS
+            .map(s => {
+                const a = agg[s.key];
+                return {
+                    label: s.label,
+                    color: s.color,
+                    avg: a && a.count > 0 ? Math.round(a.sum / a.count) : 0,
+                    count: a ? a.count : 0
+                };
+            })
+            .filter(r => r.count > 0)
+            .sort((a, b) => b.avg - a.avg);
+
+        const ctx = document.getElementById('territEstadoDuracionChart');
+        if (!ctx || typeof Chart === 'undefined') return;
+        Chart.getChart(ctx)?.destroy();
+
+        territEstadoDurInst = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: rows.map(r => r.label),
+                datasets: [{
+                    label: 'Días promedio',
+                    data: rows.map(r => r.avg),
+                    backgroundColor: rows.map(r => r.color),
+                    borderRadius: 4,
+                    borderSkipped: false,
+                    maxBarThickness: 26
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 400 },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: c => ` ${c.parsed.x.toLocaleString()} días (promedio · ${rows[c.dataIndex].count} trámites)`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        grid: { color: '#ECEFF1' },
+                        ticks: { precision: 0 },
+                        title: { display: true, text: 'Días', color: '#5F6368', font: { size: 11, weight: '500' } }
+                    },
+                    y: { grid: { display: false }, ticks: { font: { size: 11 } } }
+                }
+            }
+        });
+    })();
+
+    // ── CHART 2: Tiempo Promedio por Cantón ────────────────────────────
+    (function renderCantonDuracion() {
+        const agg = {};
+        intake.forEach(i => {
+            const c = getCanton(i);
+            const d = diasVivos(i);
+            if (!c || d === null) return;
+            if (!agg[c]) agg[c] = { sum: 0, count: 0 };
+            agg[c].sum += d;
+            agg[c].count++;
+        });
+
+        const rows = Object.entries(agg)
+            .map(([c, v]) => ({ canton: c, avg: Math.round(v.sum / v.count), count: v.count }))
+            .sort((a, b) => b.avg - a.avg);
+
+        const ctx = document.getElementById('territCantonDuracionChart');
+        if (!ctx || typeof Chart === 'undefined') return;
+        Chart.getChart(ctx)?.destroy();
+
+        territCantonDurInst = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: rows.map(r => r.canton),
+                datasets: [{
+                    label: 'Días promedio',
+                    data: rows.map(r => r.avg),
+                    backgroundColor: '#1A3C6E',
+                    borderRadius: 4,
+                    borderSkipped: false,
+                    maxBarThickness: 22
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 400 },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: c => ` ${c.parsed.x.toLocaleString()} días (promedio · ${rows[c.dataIndex].count} trámites)`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        grid: { color: '#ECEFF1' },
+                        ticks: { precision: 0 },
+                        title: { display: true, text: 'Días', color: '#5F6368', font: { size: 11, weight: '500' } }
+                    },
+                    y: { grid: { display: false }, ticks: { font: { size: 11 }, autoSkip: false } }
+                }
+            }
+        });
+    })();
+
+    // ── CHART 3: Trámites por Cantón (apilado por tipo) ────────────────
+    (function renderCantonTipo() {
+        const tipos = Object.keys(TYPE_NAMES);
+        const agg = {}; // canton -> { tipo: count }
+        intake.forEach(i => {
+            const c = getCanton(i);
+            if (!c) return;
+            const t = extractTipo(i.Fase_del_Tramite);
+            if (!agg[c]) agg[c] = {};
+            agg[c][t] = (agg[c][t] || 0) + 1;
+        });
+
+        const cantones = Object.keys(agg)
+            .sort((a, b) => {
+                const ta = Object.values(agg[a]).reduce((s, v) => s + v, 0);
+                const tb = Object.values(agg[b]).reduce((s, v) => s + v, 0);
+                return tb - ta;
+            });
+
+        const datasets = tipos.map(t => ({
+            label: TYPE_NAMES[t] || t,
+            data: cantones.map(c => agg[c][t] || 0),
+            backgroundColor: TYPE_COLORS[t] || '#607D8B',
+            borderRadius: 3,
+            borderSkipped: false,
+            maxBarThickness: 22
+        })).filter(ds => ds.data.some(v => v > 0));
+
+        const ctx = document.getElementById('territCantonTipoChart');
+        if (!ctx || typeof Chart === 'undefined') return;
+        Chart.getChart(ctx)?.destroy();
+
+        territCantonTipoInst = new Chart(ctx, {
+            type: 'bar',
+            data: { labels: cantones, datasets },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 400 },
+                plugins: {
+                    legend: { position: 'bottom', labels: { boxWidth: 12, boxHeight: 12, padding: 14, font: { size: 11 } } },
+                    tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.x.toLocaleString()}` } }
+                },
+                scales: {
+                    x: { stacked: true, beginAtZero: true, grid: { color: '#ECEFF1' }, ticks: { precision: 0 }, title: { display: true, text: 'Trámites', color: '#5F6368', font: { size: 11, weight: '500' } } },
+                    y: { stacked: true, grid: { display: false }, ticks: { font: { size: 11 }, autoSkip: false } }
+                }
+            }
+        });
+    })();
+
+    // ── CHART 4: Top 10 Parroquias ──────────────────────────────────────
+    (function renderTopParroquias() {
+        const agg = {};
+        intake.forEach(i => {
+            const p = getParroquia(i);
+            if (!p) return;
+            agg[p] = (agg[p] || 0) + 1;
+        });
+
+        const rows = Object.entries(agg)
+            .map(([p, count]) => ({ parroquia: p, count }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 10);
+
+        const ctx = document.getElementById('territParroquiaChart');
+        if (!ctx || typeof Chart === 'undefined') return;
+        Chart.getChart(ctx)?.destroy();
+
+        territParroquiaInst = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: rows.map(r => r.parroquia),
+                datasets: [{
+                    label: 'Trámites',
+                    data: rows.map(r => r.count),
+                    backgroundColor: '#007B4F',
+                    borderRadius: 4,
+                    borderSkipped: false,
+                    maxBarThickness: 22
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 400 },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: c => ` ${c.parsed.x.toLocaleString()} trámites` } }
+                },
+                scales: {
+                    x: { beginAtZero: true, grid: { color: '#ECEFF1' }, ticks: { precision: 0 }, title: { display: true, text: 'Trámites', color: '#5F6368', font: { size: 11, weight: '500' } } },
+                    y: { grid: { display: false }, ticks: { font: { size: 11 }, autoSkip: false } }
+                }
+            }
+        });
+    })();
+
+    // ── CHART 5: Estado actual por Cantón (apilado) ─────────────────────
+    (function renderCantonEstado() {
+        const agg = {}; // canton -> { estadoKey: count }
+        intake.forEach(i => {
+            const c = getCanton(i);
+            if (!c) return;
+            const e = getEstadoTramite(i, tiempos);
+            if (!agg[c]) agg[c] = {};
+            agg[c][e] = (agg[c][e] || 0) + 1;
+        });
+
+        const cantones = Object.keys(agg)
+            .sort((a, b) => {
+                const ta = Object.values(agg[a]).reduce((s, v) => s + v, 0);
+                const tb = Object.values(agg[b]).reduce((s, v) => s + v, 0);
+                return tb - ta;
+            });
+
+        const datasets = EXEC_STATE_SEGMENTS.map(seg => ({
+            label: seg.label,
+            data: cantones.map(c => agg[c][seg.key] || 0),
+            backgroundColor: seg.color,
+            borderRadius: 3,
+            borderSkipped: false,
+            maxBarThickness: 22
+        })).filter(ds => ds.data.some(v => v > 0));
+
+        const ctx = document.getElementById('territCantonEstadoChart');
+        if (!ctx || typeof Chart === 'undefined') return;
+        Chart.getChart(ctx)?.destroy();
+
+        territCantonEstadoInst = new Chart(ctx, {
+            type: 'bar',
+            data: { labels: cantones, datasets },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 400 },
+                plugins: {
+                    legend: { position: 'bottom', labels: { boxWidth: 12, boxHeight: 12, padding: 14, font: { size: 11 } } },
+                    tooltip: { callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.x.toLocaleString()}` } }
+                },
+                scales: {
+                    x: { stacked: true, beginAtZero: true, grid: { color: '#ECEFF1' }, ticks: { precision: 0 }, title: { display: true, text: 'Trámites', color: '#5F6368', font: { size: 11, weight: '500' } } },
+                    y: { stacked: true, grid: { display: false }, ticks: { font: { size: 11 }, autoSkip: false } }
+                }
+            }
+        });
+    })();
+
+    // ── TABLA: Detalle territorial ──────────────────────────────────────
+    (function renderTabla() {
+        const tbody = document.getElementById('territ-tbody');
+        if (!tbody) return;
+
+        const agg = {}; // canton -> { parroquias:Set, total, enProceso, finalizado, detenido, diasSum, diasCount, dexSum, dexCount }
+        intake.forEach(i => {
+            const c = getCanton(i);
+            if (!c) return;
+            if (!agg[c]) agg[c] = { parroquias: new Set(), total: 0, enProceso: 0, finalizado: 0, detenido: 0, diasSum: 0, diasCount: 0, dexSum: 0, dexCount: 0 };
+            const a = agg[c];
+            const p = getParroquia(i); if (p) a.parroquias.add(p);
+            a.total++;
+            const est = getEstadoTramite(i, tiempos);
+            if (est === 'en_proceso') a.enProceso++;
+            else if (est === 'finalizado') a.finalizado++;
+            else if (est === 'detenido') a.detenido++;
+            const d = diasVivos(i); if (d !== null) { a.diasSum += d; a.diasCount++; }
+            const dex = diasDex(i); if (dex !== null) { a.dexSum += dex; a.dexCount++; }
+        });
+
+        const rows = Object.entries(agg)
+            .map(([c, v]) => ({
+                canton: c,
+                parroquias: v.parroquias.size,
+                total: v.total,
+                enProceso: v.enProceso,
+                finalizado: v.finalizado,
+                detenido: v.detenido,
+                promDias: v.diasCount > 0 ? Math.round(v.diasSum / v.diasCount) : 0,
+                promDex: v.dexCount > 0 ? Math.round(v.dexSum / v.dexCount) : 0
+            }))
+            .sort((a, b) => b.total - a.total);
+
+        if (rows.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="8" class="ls-empty">Sin datos territoriales para el filtro seleccionado</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = rows.map(r => `
+            <tr class="ls-data-row">
+                <td><strong>${escapeHtml(r.canton)}</strong></td>
+                <td>${r.parroquias.toLocaleString()}</td>
+                <td><strong>${r.total.toLocaleString()}</strong></td>
+                <td style="color:#E88B00">${r.enProceso.toLocaleString()}</td>
+                <td style="color:#007B4F">${r.finalizado.toLocaleString()}</td>
+                <td style="color:#A52422">${r.detenido.toLocaleString()}</td>
+                <td>${r.promDias.toLocaleString()}</td>
+                <td>${r.promDex.toLocaleString()}</td>
+            </tr>
+        `).join('');
     })();
 }
 
