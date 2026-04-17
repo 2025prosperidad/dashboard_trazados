@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard Trazados Viales - Prefectura de Pichincha</title>
-    <link rel="stylesheet" href="css/styles.css?v=20260416a">
+    <link rel="stylesheet" href="css/styles.css?v=20260417a">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link href="https://unpkg.com/lucide-static@latest/font/lucide.css" rel="stylesheet">
 </head>
@@ -63,13 +63,21 @@
 
             <!-- Filter Bar (global) -->
             <div class="global-filter-bar">
-                <!-- Selectores Principales -->
+                <!-- Ubicación -->
                 <div class="filter-group">
-                    <label class="filter-label"><i class="lucide lucide-user"></i> Usuario:</label>
-                    <select id="filtro-usuario" class="filter-select" onchange="onFiltroUsuarioChange(this.value)">
-                        <option value="Todos">Todos los Usuarios</option>
+                    <label class="filter-label"><i class="lucide lucide-map"></i> Cantón:</label>
+                    <select id="filtro-canton" class="filter-select" onchange="onFiltroCantonChange(this.value)">
+                        <option value="Todos">Todos</option>
                     </select>
                 </div>
+                <div class="filter-group">
+                    <label class="filter-label"><i class="lucide lucide-map-pin"></i> Parroquia:</label>
+                    <select id="filtro-parroquia" class="filter-select" onchange="onFiltroParroquiaChange(this.value)">
+                        <option value="Todos">Todas</option>
+                    </select>
+                </div>
+
+                <!-- Tipo / Fase / Estado -->
                 <div class="filter-group">
                     <label class="filter-label"><i class="lucide lucide-folder"></i> Tipo:</label>
                     <select id="filtro-tipo" class="filter-select" onchange="onFiltroTipoChange(this.value)">
@@ -82,8 +90,24 @@
                         <option value="Todos">Todas las Fases</option>
                     </select>
                 </div>
+                <div class="filter-group">
+                    <label class="filter-label"><i class="lucide lucide-activity"></i> Estado:</label>
+                    <select id="filtro-estado" class="filter-select" onchange="onFiltroEstadoChange(this.value)">
+                        <option value="Todos">Todos</option>
+                    </select>
+                </div>
 
-                <!-- Nuevos Filtros: Fechas -->
+                <!-- Fechas: DEX · Inicio · Cumplimiento -->
+                <div class="filter-group">
+                    <label class="filter-label"><i class="lucide lucide-calendar-clock"></i> F. DEX Desde:</label>
+                    <input type="date" id="filtro-dex-desde" class="filter-select"
+                        onchange="onFiltroDexDesdeChange(this.value)">
+                </div>
+                <div class="filter-group">
+                    <label class="filter-label"><i class="lucide lucide-calendar-clock"></i> F. DEX Hasta:</label>
+                    <input type="date" id="filtro-dex-hasta" class="filter-select"
+                        onchange="onFiltroDexHastaChange(this.value)">
+                </div>
                 <div class="filter-group">
                     <label class="filter-label"><i class="lucide lucide-calendar"></i> F. Inicio Desde:</label>
                     <input type="date" id="filtro-inicio-desde" class="filter-select"
@@ -103,27 +127,6 @@
                     <label class="filter-label"><i class="lucide lucide-calendar-check"></i> F. Cumpl. Hasta:</label>
                     <input type="date" id="filtro-cumpl-hasta" class="filter-select"
                         onchange="onFiltroCumplHastaChange(this.value)">
-                </div>
-
-                <!-- Nuevos Filtros: Ubicacion -->
-                <div class="filter-group">
-                    <label class="filter-label"><i class="lucide lucide-map"></i> Cantón:</label>
-                    <select id="filtro-canton" class="filter-select" onchange="onFiltroCantonChange(this.value)">
-                        <option value="Todos">Todos</option>
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <label class="filter-label"><i class="lucide lucide-map-pin"></i> Parroquia:</label>
-                    <select id="filtro-parroquia" class="filter-select" onchange="onFiltroParroquiaChange(this.value)">
-                        <option value="Todos">Todas</option>
-                    </select>
-                </div>
-
-                <!-- Nuevo Filtro: Solicitante (Busqueda de Texto) -->
-                <div class="filter-group">
-                    <label class="filter-label"><i class="lucide lucide-search"></i> Solicitante:</label>
-                    <input type="text" id="filtro-nombre" class="filter-select" placeholder="Buscar por nombre..."
-                        oninput="onFiltroNombreChange(this.value)">
                 </div>
             </div>
 
@@ -499,56 +502,7 @@
             <button onclick="toggleMobileMenu()"><i class="lucide lucide-x"></i></button>
         </div>
         <div class="mobile-filter-body">
-            <!-- Selectores Principales -->
-            <div class="mobile-filter-group">
-                <label>Usuario</label>
-                <select id="filtro-usuario-mobile" class="filter-select"
-                    onchange="document.getElementById('filtro-usuario').value=this.value; onFiltroUsuarioChange(this.value)">
-                    <option value="Todos">Todos los Usuarios</option>
-                </select>
-            </div>
-            <div class="mobile-filter-group">
-                <label>Tipo</label>
-                <select id="filtro-tipo-mobile" class="filter-select"
-                    onchange="document.getElementById('filtro-tipo').value=this.value; onFiltroTipoChange(this.value)">
-                    <option value="Todos">Todos los Tipos</option>
-                </select>
-            </div>
-            <div class="mobile-filter-group">
-                <label>Fase</label>
-                <select id="filtro-fase-mobile" class="filter-select"
-                    onchange="document.getElementById('filtro-fase').value=this.value; onFiltroFaseChange(this.value)">
-                    <option value="Todos">Todas las Fases</option>
-                </select>
-            </div>
-
-            <hr style="border:0; border-top:1px solid #DEE2E6; margin: 10px 0;">
-
-            <!-- Nuevos Filtros: Fechas -->
-            <div class="mobile-filter-group">
-                <label>F. Inicio Desde</label>
-                <input type="date" id="filtro-inicio-desde-mobile" class="filter-select"
-                    onchange="document.getElementById('filtro-inicio-desde').value=this.value; onFiltroInicioDesdeChange(this.value)">
-            </div>
-            <div class="mobile-filter-group">
-                <label>F. Inicio Hasta</label>
-                <input type="date" id="filtro-inicio-hasta-mobile" class="filter-select"
-                    onchange="document.getElementById('filtro-inicio-hasta').value=this.value; onFiltroInicioHastaChange(this.value)">
-            </div>
-            <div class="mobile-filter-group">
-                <label>F. Cumpl. Desde</label>
-                <input type="date" id="filtro-cumpl-desde-mobile" class="filter-select"
-                    onchange="document.getElementById('filtro-cumpl-desde').value=this.value; onFiltroCumplDesdeChange(this.value)">
-            </div>
-            <div class="mobile-filter-group">
-                <label>F. Cumpl. Hasta</label>
-                <input type="date" id="filtro-cumpl-hasta-mobile" class="filter-select"
-                    onchange="document.getElementById('filtro-cumpl-hasta').value=this.value; onFiltroCumplHastaChange(this.value)">
-            </div>
-
-            <hr style="border:0; border-top:1px solid #DEE2E6; margin: 10px 0;">
-
-            <!-- Nuevos Filtros: Ubicacion -->
+            <!-- Ubicación -->
             <div class="mobile-filter-group">
                 <label>Cantón</label>
                 <select id="filtro-canton-mobile" class="filter-select"
@@ -566,11 +520,61 @@
 
             <hr style="border:0; border-top:1px solid #DEE2E6; margin: 10px 0;">
 
-            <!-- Nuevo Filtro: Solicitante -->
+            <!-- Tipo / Fase / Estado -->
+            <div class="mobile-filter-group">
+                <label>Tipo</label>
+                <select id="filtro-tipo-mobile" class="filter-select"
+                    onchange="document.getElementById('filtro-tipo').value=this.value; onFiltroTipoChange(this.value)">
+                    <option value="Todos">Todos los Tipos</option>
+                </select>
+            </div>
+            <div class="mobile-filter-group">
+                <label>Fase</label>
+                <select id="filtro-fase-mobile" class="filter-select"
+                    onchange="document.getElementById('filtro-fase').value=this.value; onFiltroFaseChange(this.value)">
+                    <option value="Todos">Todas las Fases</option>
+                </select>
+            </div>
+            <div class="mobile-filter-group">
+                <label>Estado</label>
+                <select id="filtro-estado-mobile" class="filter-select"
+                    onchange="document.getElementById('filtro-estado').value=this.value; onFiltroEstadoChange(this.value)">
+                    <option value="Todos">Todos</option>
+                </select>
+            </div>
+
+            <hr style="border:0; border-top:1px solid #DEE2E6; margin: 10px 0;">
+
+            <!-- Fechas -->
+            <div class="mobile-filter-group">
+                <label>F. DEX Desde</label>
+                <input type="date" id="filtro-dex-desde-mobile" class="filter-select"
+                    onchange="document.getElementById('filtro-dex-desde').value=this.value; onFiltroDexDesdeChange(this.value)">
+            </div>
+            <div class="mobile-filter-group">
+                <label>F. DEX Hasta</label>
+                <input type="date" id="filtro-dex-hasta-mobile" class="filter-select"
+                    onchange="document.getElementById('filtro-dex-hasta').value=this.value; onFiltroDexHastaChange(this.value)">
+            </div>
+            <div class="mobile-filter-group">
+                <label>F. Inicio Desde</label>
+                <input type="date" id="filtro-inicio-desde-mobile" class="filter-select"
+                    onchange="document.getElementById('filtro-inicio-desde').value=this.value; onFiltroInicioDesdeChange(this.value)">
+            </div>
+            <div class="mobile-filter-group">
+                <label>F. Inicio Hasta</label>
+                <input type="date" id="filtro-inicio-hasta-mobile" class="filter-select"
+                    onchange="document.getElementById('filtro-inicio-hasta').value=this.value; onFiltroInicioHastaChange(this.value)">
+            </div>
+            <div class="mobile-filter-group">
+                <label>F. Cumpl. Desde</label>
+                <input type="date" id="filtro-cumpl-desde-mobile" class="filter-select"
+                    onchange="document.getElementById('filtro-cumpl-desde').value=this.value; onFiltroCumplDesdeChange(this.value)">
+            </div>
             <div class="mobile-filter-group" style="margin-bottom: 20px;">
-                <label>Solicitante</label>
-                <input type="text" id="filtro-nombre-mobile" class="filter-select" placeholder="Buscar por nombre..."
-                    oninput="document.getElementById('filtro-nombre').value=this.value; onFiltroNombreChange(this.value)">
+                <label>F. Cumpl. Hasta</label>
+                <input type="date" id="filtro-cumpl-hasta-mobile" class="filter-select"
+                    onchange="document.getElementById('filtro-cumpl-hasta').value=this.value; onFiltroCumplHastaChange(this.value)">
             </div>
         </div>
     </div>
@@ -582,8 +586,8 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script src="js/api.js?v=20260416a"></script>
-    <script src="js/app.js?v=20260416a"></script>
+    <script src="js/api.js?v=20260417a"></script>
+    <script src="js/app.js?v=20260417a"></script>
 </body>
 
 </html>

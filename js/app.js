@@ -8,16 +8,17 @@ let dashboardData = null;
 let currentPage = 'ranking';
 let filtroFase = 'Todos';
 let filtroTipo = 'Todos';
-let filtroUsuario = 'Todos';
+let filtroEstado = 'Todos';
 
 // Nuevos Filtros globales
 let filtroInicioDesde = '';
 let filtroInicioHasta = '';
 let filtroCumplDesde = '';
 let filtroCumplHasta = '';
+let filtroDexDesde = '';
+let filtroDexHasta = '';
 let filtroCanton = 'Todos';
 let filtroParroquia = 'Todos';
-let filtroNombre = '';
 
 // Colores basados en el logo de Prefectura de Pichincha
 const TYPE_COLORS = {
@@ -537,18 +538,24 @@ function getFilteredIntake() {
     if (!dashboardData) return [];
     let data = dashboardData.intake;
 
-    // Filtros Antiguos
+    // Tipo / Fase
     if (filtroTipo !== 'Todos') {
         data = data.filter(i => extractTipo(i.Fase_del_Tramite) === filtroTipo);
     }
     if (filtroFase !== 'Todos') {
         data = data.filter(i => i.Fase_del_Tramite === filtroFase);
     }
-    if (filtroUsuario !== 'Todos') {
-        data = data.filter(i => (i.Responsible || '').toLowerCase() === filtroUsuario.toLowerCase());
+
+    // Estado (usa ESTADO_ACTUAL con fallback a Estado)
+    if (filtroEstado !== 'Todos') {
+        const objetivo = filtroEstado.toLowerCase().trim();
+        data = data.filter(i => {
+            const raw = (i.ESTADO_ACTUAL || i.Estado || '').toLowerCase().trim();
+            return raw === objetivo;
+        });
     }
 
-    // Filtros Nuevos: Ubicacion
+    // Ubicación
     if (filtroCanton !== 'Todos') {
         data = data.filter(i => (i[' CANTÓN'] || i['CANTÓN'] || i['CANTON'] || '').trim() === filtroCanton);
     }
@@ -556,28 +563,35 @@ function getFilteredIntake() {
         data = data.filter(i => (i.PARROQUIA || '').trim() === filtroParroquia);
     }
 
-    // Filtros Nuevos: Solicitante (Busqueda de Substring, Insensible a Mayusculas)
-    if (filtroNombre.trim() !== '') {
-        const search = filtroNombre.toLowerCase().trim();
-        data = data.filter(i => (i.Name || '').toLowerCase().includes(search));
-    }
-
-    // Filtros Nuevos: Fechas de Inicio
-    if (filtroInicioDesde || filtroInicioHasta) {
-        const dDesde = parseDateOnly(filtroInicioDesde + "T00:00:00");
-        const dHasta = parseDateOnly(filtroInicioHasta + "T00:00:00");
+    // Fecha DEX (Fecha_Sol_Oficio)
+    if (filtroDexDesde || filtroDexHasta) {
+        const dDesde = parseDateOnly(filtroDexDesde + "T00:00:00");
+        const dHasta = parseDateOnly(filtroDexHasta + "T00:00:00");
 
         data = data.filter(i => {
-            const itemDate = parseDateOnly(i['Start date']);
-            if (!itemDate) return false; // si no tiene fecha, lo ocultamos si hay filtro
-
+            const itemDate = parseDateOnly(i.Fecha_Sol_Oficio);
+            if (!itemDate) return false;
             if (dDesde && itemDate < dDesde) return false;
             if (dHasta && itemDate > dHasta) return false;
             return true;
         });
     }
 
-    // Filtros Nuevos: Fechas de Cumplimiento
+    // Fecha de Inicio (Start date)
+    if (filtroInicioDesde || filtroInicioHasta) {
+        const dDesde = parseDateOnly(filtroInicioDesde + "T00:00:00");
+        const dHasta = parseDateOnly(filtroInicioHasta + "T00:00:00");
+
+        data = data.filter(i => {
+            const itemDate = parseDateOnly(i['Start date']);
+            if (!itemDate) return false;
+            if (dDesde && itemDate < dDesde) return false;
+            if (dHasta && itemDate > dHasta) return false;
+            return true;
+        });
+    }
+
+    // Fecha de Cumplimiento (Compliance date)
     if (filtroCumplDesde || filtroCumplHasta) {
         const dDesde = parseDateOnly(filtroCumplDesde + "T00:00:00");
         const dHasta = parseDateOnly(filtroCumplHasta + "T00:00:00");
@@ -585,7 +599,6 @@ function getFilteredIntake() {
         data = data.filter(i => {
             const itemDate = parseDateOnly(i['Compliance date']);
             if (!itemDate) return false;
-
             if (dDesde && itemDate < dDesde) return false;
             if (dHasta && itemDate > dHasta) return false;
             return true;
@@ -631,7 +644,7 @@ async function loadData() {
 }
 
 /**
- * Fija los filtros de F. Inicio Desde / Hasta al año actual (1-ene al 31-dic)
+ * Fija los filtros de fechas (DEX, Inicio) al año actual (1-ene al 31-dic)
  * y sincroniza tanto los inputs desktop como mobile.
  */
 function aplicarFiltroAnioActual() {
@@ -639,6 +652,8 @@ function aplicarFiltroAnioActual() {
     const desde = `${anio}-01-01`;
     const hasta = `${anio}-12-31`;
 
+    filtroDexDesde = desde;
+    filtroDexHasta = hasta;
     filtroInicioDesde = desde;
     filtroInicioHasta = hasta;
 
@@ -646,6 +661,10 @@ function aplicarFiltroAnioActual() {
         const el = document.getElementById(id);
         if (el) el.value = value;
     };
+    set('filtro-dex-desde', desde);
+    set('filtro-dex-hasta', hasta);
+    set('filtro-dex-desde-mobile', desde);
+    set('filtro-dex-hasta-mobile', hasta);
     set('filtro-inicio-desde', desde);
     set('filtro-inicio-hasta', hasta);
     set('filtro-inicio-desde-mobile', desde);
@@ -669,6 +688,10 @@ function buildFilters() {
     const tiposUnicos = [...new Set(dashboardData.intake.map(i => extractTipo(i.Fase_del_Tramite)).filter(Boolean))].sort();
     const cantonesUnicos = [...new Set(dashboardData.intake.map(i => (i[' CANTÓN'] || i['CANTÓN'] || i['CANTON'] || '').trim()).filter(Boolean))].sort();
     const parroquiasUnicas = [...new Set(dashboardData.intake.map(i => (i.PARROQUIA || '').trim()).filter(Boolean))].sort();
+    const estadosUnicos = [...new Set(dashboardData.intake
+        .map(i => (i.ESTADO_ACTUAL || i.Estado || '').trim())
+        .filter(Boolean)
+    )].sort((a, b) => a.localeCompare(b, 'es'));
 
     // Populate Tipo filter
     const tipoSelect = document.getElementById('filtro-tipo');
@@ -713,16 +736,20 @@ function buildFilters() {
         mobileFaseSelect.value = filtroFase;
     }
 
-    // Populate Usuario filter
-    const userSelect = document.getElementById('filtro-usuario');
-    const emailsEnUso = [...new Set(dashboardData.intake.map(i => i.Responsible).filter(Boolean))].sort();
-    if (userSelect) {
-        userSelect.innerHTML = '<option value="Todos">Todos los Usuarios</option>';
-        emailsEnUso.forEach(email => {
-            const name = getUserNameShort(email);
-            userSelect.innerHTML += `<option value="${email}">${name}</option>`;
+    // Populate Estado filter
+    const estadoSelect = document.getElementById('filtro-estado');
+    if (estadoSelect) {
+        estadoSelect.innerHTML = '<option value="Todos">Todos</option>';
+        estadosUnicos.forEach(e => {
+            estadoSelect.innerHTML += `<option value="${e}">${e}</option>`;
         });
-        userSelect.value = filtroUsuario;
+        // Si el estado seleccionado ya no existe, volver a 'Todos'
+        if (filtroEstado !== 'Todos' && !estadosUnicos.some(e => e.toLowerCase() === filtroEstado.toLowerCase())) {
+            filtroEstado = 'Todos';
+            estadoSelect.value = 'Todos';
+        } else {
+            estadoSelect.value = filtroEstado;
+        }
     }
 
     // Populate Cantón filter
@@ -760,10 +787,10 @@ function buildFilters() {
     }
 
     // Sync mobile filter dropdowns
-    syncMobileFilters(tiposUnicos, fasesUnicas, emailsEnUso, cantonesUnicos, parroquiasFiltradas);
+    syncMobileFilters(tiposUnicos, fasesFiltradas, estadosUnicos, cantonesUnicos, parroquiasFiltradas);
 }
 
-function syncMobileFilters(tiposUnicos, fasesUnicas, emailsEnUso, cantonesUnicos, parroquiasFiltradas) {
+function syncMobileFilters(tiposUnicos, fasesFiltradas, estadosUnicos, cantonesUnicos, parroquiasFiltradas) {
     // Mobile Tipo
     const tipoMobile = document.getElementById('filtro-tipo-mobile');
     if (tipoMobile) {
@@ -774,25 +801,24 @@ function syncMobileFilters(tiposUnicos, fasesUnicas, emailsEnUso, cantonesUnicos
         tipoMobile.value = filtroTipo;
     }
 
-    // Mobile Fase
+    // Mobile Fase (respeta el subconjunto de fases según el Tipo seleccionado)
     const faseMobile = document.getElementById('filtro-fase-mobile');
     if (faseMobile) {
         faseMobile.innerHTML = '<option value="Todos">Todas las Fases</option>';
-        fasesUnicas.forEach(f => {
+        fasesFiltradas.forEach(f => {
             faseMobile.innerHTML += `<option value="${f}">${getFaseName(f)}</option>`;
         });
         faseMobile.value = filtroFase;
     }
 
-    // Mobile Usuario
-    const userMobile = document.getElementById('filtro-usuario-mobile');
-    if (userMobile) {
-        userMobile.innerHTML = '<option value="Todos">Todos los Usuarios</option>';
-        emailsEnUso.forEach(email => {
-            const name = getUserNameShort(email);
-            userMobile.innerHTML += `<option value="${email}">${name}</option>`;
+    // Mobile Estado
+    const estadoMobile = document.getElementById('filtro-estado-mobile');
+    if (estadoMobile) {
+        estadoMobile.innerHTML = '<option value="Todos">Todos</option>';
+        estadosUnicos.forEach(e => {
+            estadoMobile.innerHTML += `<option value="${e}">${e}</option>`;
         });
-        userMobile.value = filtroUsuario;
+        estadoMobile.value = filtroEstado;
     }
 
     // Mobile Cantón
@@ -841,35 +867,56 @@ function onFiltroFaseChange(value) {
     renderAllPages();
 }
 
-function onFiltroUsuarioChange(value) {
-    filtroUsuario = value;
-    // Sync both desktop & mobile
-    const userSelect = document.getElementById('filtro-usuario');
-    const userMobile = document.getElementById('filtro-usuario-mobile');
-    if (userSelect) userSelect.value = value;
-    if (userMobile) userMobile.value = value;
+function onFiltroEstadoChange(value) {
+    filtroEstado = value;
+    const estadoSelect = document.getElementById('filtro-estado');
+    const estadoMobile = document.getElementById('filtro-estado-mobile');
+    if (estadoSelect) estadoSelect.value = value;
+    if (estadoMobile) estadoMobile.value = value;
     renderAllPages();
 }
 
-/* Nuevos Event Listeners */
+/* Event Listeners de fechas */
+function _syncDateInputs(desktopId, mobileId, value) {
+    const d = document.getElementById(desktopId);
+    const m = document.getElementById(mobileId);
+    if (d && d.value !== value) d.value = value;
+    if (m && m.value !== value) m.value = value;
+}
+
+function onFiltroDexDesdeChange(value) {
+    filtroDexDesde = value;
+    _syncDateInputs('filtro-dex-desde', 'filtro-dex-desde-mobile', value);
+    renderAllPages();
+}
+
+function onFiltroDexHastaChange(value) {
+    filtroDexHasta = value;
+    _syncDateInputs('filtro-dex-hasta', 'filtro-dex-hasta-mobile', value);
+    renderAllPages();
+}
+
 function onFiltroInicioDesdeChange(value) {
     filtroInicioDesde = value;
-    // Mobile sync is handled inline via `onchange="document.getElementById(...).value = this.value"`
+    _syncDateInputs('filtro-inicio-desde', 'filtro-inicio-desde-mobile', value);
     renderAllPages();
 }
 
 function onFiltroInicioHastaChange(value) {
     filtroInicioHasta = value;
+    _syncDateInputs('filtro-inicio-hasta', 'filtro-inicio-hasta-mobile', value);
     renderAllPages();
 }
 
 function onFiltroCumplDesdeChange(value) {
     filtroCumplDesde = value;
+    _syncDateInputs('filtro-cumpl-desde', 'filtro-cumpl-desde-mobile', value);
     renderAllPages();
 }
 
 function onFiltroCumplHastaChange(value) {
     filtroCumplHasta = value;
+    _syncDateInputs('filtro-cumpl-hasta', 'filtro-cumpl-hasta-mobile', value);
     renderAllPages();
 }
 
@@ -888,15 +935,6 @@ function onFiltroParroquiaChange(value) {
     const parrMobile = document.getElementById('filtro-parroquia-mobile');
     if (parrSelect) parrSelect.value = value;
     if (parrMobile) parrMobile.value = value;
-    renderAllPages();
-}
-
-function onFiltroNombreChange(value) {
-    filtroNombre = value;
-    const nombreInput = document.getElementById('filtro-nombre');
-    const nombreMobile = document.getElementById('filtro-nombre-mobile');
-    if (nombreInput && nombreInput.value !== value) nombreInput.value = value;
-    if (nombreMobile && nombreMobile.value !== value) nombreMobile.value = value;
     renderAllPages();
 }
 
