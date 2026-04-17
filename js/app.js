@@ -1288,10 +1288,12 @@ function renderRankingPage() {
    ========================================== */
 let prodTipoHBarInst = null;
 let prodFaseDuracionChartInst = null;
+let prodEstadoDuracionChartInst = null;
 
 function renderProductividadPage() {
     if (prodTipoHBarInst) { try { prodTipoHBarInst.destroy(); } catch (e) {} prodTipoHBarInst = null; }
     if (prodFaseDuracionChartInst) { try { prodFaseDuracionChartInst.destroy(); } catch (e) {} prodFaseDuracionChartInst = null; }
+    if (prodEstadoDuracionChartInst) { try { prodEstadoDuracionChartInst.destroy(); } catch (e) {} prodEstadoDuracionChartInst = null; }
 
     const intake = getFilteredIntake();
     const { tiempos } = dashboardData;
@@ -1728,6 +1730,77 @@ function renderProductividadPage() {
                 scales: {
                     x: { beginAtZero: true, grid: { color: '#ECEFF1' }, ticks: { precision: 0 }, title: { display: true, text: 'Días', color: '#5F6368', font: { size: 11, weight: '500' } } },
                     y: { grid: { display: false }, ticks: { font: { size: 11 }, autoSkip: false, maxRotation: 0 } }
+                }
+            }
+        });
+    })();
+
+    // ── Chart: Tiempo Promedio por Estado (ESTADO_ACTUAL) ──────────────
+    (function renderProdEstadoDuracionChart() {
+        // Días "vividos" por cada trámite: desde Start date hasta Compliance date (si existe) o hasta hoy.
+        const diasVivos = (i) => {
+            const ini = parseDateOnly(i['Start date']);
+            if (!ini) return null;
+            const fin = parseDateOnly(i['Compliance date']) || now;
+            return Math.max(0, Math.floor((fin - ini) / 86400000));
+        };
+
+        const agg = {};
+        intake.forEach(i => {
+            const key = getEstadoTramite(i, tiempos);
+            const d = diasVivos(i);
+            if (d === null) return;
+            if (!agg[key]) agg[key] = { sum: 0, count: 0 };
+            agg[key].sum += d;
+            agg[key].count++;
+        });
+
+        const rows = EXEC_STATE_SEGMENTS
+            .map(s => {
+                const a = agg[s.key];
+                return {
+                    label: s.label,
+                    color: s.color,
+                    avg: a && a.count > 0 ? Math.round(a.sum / a.count) : 0,
+                    count: a ? a.count : 0
+                };
+            })
+            .filter(r => r.count > 0)
+            .sort((a, b) => b.avg - a.avg);
+
+        const ctx = document.getElementById('prodEstadoDuracionChart');
+        if (!ctx || typeof Chart === 'undefined') return;
+        Chart.getChart(ctx)?.destroy();
+
+        prodEstadoDuracionChartInst = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: rows.map(r => r.label),
+                datasets: [{
+                    label: 'Días promedio',
+                    data: rows.map(r => r.avg),
+                    backgroundColor: rows.map(r => r.color),
+                    borderRadius: 4,
+                    borderSkipped: false,
+                    maxBarThickness: 26
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 400 },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: c => ` ${c.parsed.x.toLocaleString()} días (promedio · ${rows[c.dataIndex].count} trámites)`
+                        }
+                    }
+                },
+                scales: {
+                    x: { beginAtZero: true, grid: { color: '#ECEFF1' }, ticks: { precision: 0 }, title: { display: true, text: 'Días', color: '#5F6368', font: { size: 11, weight: '500' } } },
+                    y: { grid: { display: false }, ticks: { font: { size: 11 } } }
                 }
             }
         });
@@ -2213,8 +2286,7 @@ let tendLineChartInst = null;
 let tendEstadosChartInst = null;
 
 // Chart instances for Territorialidad
-let territEstadoDurInst = null;
-let territCantonDurInst = null;
+let territCantonTotalInst = null;
 let territCantonTipoInst = null;
 let territParroquiaInst = null;
 let territCantonEstadoInst = null;
@@ -2495,54 +2567,36 @@ function renderTendenciasPage() {
 }
 
 /* ==========================================
-   PAGE 6: TERRITORIALIDAD
+   PAGE 6: TERRITORIALIDAD (solo cantidades)
    ========================================== */
 function renderTerritorialidadPage() {
     if (!dashboardData) return;
     const intake = getFilteredIntake();
     const { tiempos } = dashboardData;
 
-    const now = new Date();
-
-    // Normaliza nombre de cantón (quita espacio inicial, upper-case)
+    // Normaliza nombres territoriales
     const getCanton = (i) => (i[' CANTÓN'] || i['CANTÓN'] || i['CANTON'] || '').toString().trim();
     const getParroquia = (i) => (i.PARROQUIA || '').toString().trim();
 
-    // Días "vividos" por el trámite: si tiene Compliance date => cerrado (días a ese momento),
-    // si no => días desde Start date al día de hoy.
-    const diasVivos = (i) => {
-        const ini = parseDateOnly(i['Start date']);
-        if (!ini) return null;
-        const fin = parseDateOnly(i['Compliance date']) || now;
-        return Math.max(0, Math.floor((fin - ini) / 86400000));
-    };
-
-    // Días DEX: desde Fecha_Sol_Oficio a Start date
-    const diasDex = (i) => {
-        const solOf = parseDateOnly(i.Fecha_Sol_Oficio);
-        const start = parseDateOnly(i['Start date']);
-        if (!solOf || !start) return null;
-        return Math.max(0, Math.floor((start - solOf) / 86400000));
-    };
-
-    // ── KPIs ──────────────────────────────────────────────────────────
+    // ── KPIs (cantidades) ─────────────────────────────────────────────
     const cantonesActivos = new Set(intake.map(getCanton).filter(Boolean));
     const parroquiasActivas = new Set(intake.map(getParroquia).filter(Boolean));
 
     const countPorCanton = {};
+    const countPorParroquia = {};
     intake.forEach(i => {
         const c = getCanton(i);
-        if (!c) return;
-        countPorCanton[c] = (countPorCanton[c] || 0) + 1;
+        if (c) countPorCanton[c] = (countPorCanton[c] || 0) + 1;
+        const p = getParroquia(i);
+        if (p) countPorParroquia[p] = (countPorParroquia[p] || 0) + 1;
     });
-    const lider = Object.entries(countPorCanton).sort((a, b) => b[1] - a[1])[0];
-    const cantonLiderNombre = lider ? lider[0] : '—';
-    const cantonLiderCount = lider ? lider[1] : 0;
+    const cantonLider = Object.entries(countPorCanton).sort((a, b) => b[1] - a[1])[0];
+    const cantonLiderNombre = cantonLider ? cantonLider[0] : '—';
+    const cantonLiderCount = cantonLider ? cantonLider[1] : 0;
 
-    const duraciones = intake.map(diasVivos).filter(v => v !== null);
-    const promDias = duraciones.length > 0
-        ? Math.round(duraciones.reduce((s, v) => s + v, 0) / duraciones.length)
-        : 0;
+    const parrLider = Object.entries(countPorParroquia).sort((a, b) => b[1] - a[1])[0];
+    const parrLiderNombre = parrLider ? parrLider[0] : '—';
+    const parrLiderCount = parrLider ? parrLider[1] : 0;
 
     const kpiContainer = document.getElementById('territ-kpis');
     if (kpiContainer) {
@@ -2560,9 +2614,10 @@ function renderTerritorialidadPage() {
                 <span class="kpi-value" style="color:#E88B00;font-size:1.4rem" title="${escapeHtml(cantonLiderNombre)}">${escapeHtml(cantonLiderNombre.length > 18 ? cantonLiderNombre.slice(0, 16) + '…' : cantonLiderNombre)}</span>
                 <span class="kpi-label" style="margin-top:2px">${cantonLiderCount.toLocaleString()} trámites</span>
             </div>
-            <div class="kpi-card" style="border-top-color:#A52422">
-                <span class="kpi-label">Prom. Días por Trámite</span>
-                <span class="kpi-value" style="color:#A52422">${promDias.toLocaleString()}</span>
+            <div class="kpi-card" style="border-top-color:#7B1FA2">
+                <span class="kpi-label">Parroquia Líder</span>
+                <span class="kpi-value" style="color:#7B1FA2;font-size:1.4rem" title="${escapeHtml(parrLiderNombre)}">${escapeHtml(parrLiderNombre.length > 18 ? parrLiderNombre.slice(0, 16) + '…' : parrLiderNombre)}</span>
+                <span class="kpi-label" style="margin-top:2px">${parrLiderCount.toLocaleString()} trámites</span>
             </div>
         `;
     }
@@ -2570,101 +2625,23 @@ function renderTerritorialidadPage() {
     const badge = document.getElementById('territ-badge');
     if (badge) badge.textContent = `${intake.length.toLocaleString()} trámites`;
 
-    // ── CHART 1: Tiempo Promedio por Estado (ESTADO_ACTUAL) ────────────
-    (function renderEstadoDuracion() {
-        const agg = {};
-        intake.forEach(i => {
-            const key = getEstadoTramite(i, tiempos);
-            const d = diasVivos(i);
-            if (d === null) return;
-            if (!agg[key]) agg[key] = { sum: 0, count: 0 };
-            agg[key].sum += d;
-            agg[key].count++;
-        });
+    // ── CHART 1: Trámites por Cantón (total) ──────────────────────────
+    (function renderCantonTotal() {
+        const rows = Object.entries(countPorCanton)
+            .map(([c, count]) => ({ canton: c, count }))
+            .sort((a, b) => b.count - a.count);
 
-        const rows = EXEC_STATE_SEGMENTS
-            .map(s => {
-                const a = agg[s.key];
-                return {
-                    label: s.label,
-                    color: s.color,
-                    avg: a && a.count > 0 ? Math.round(a.sum / a.count) : 0,
-                    count: a ? a.count : 0
-                };
-            })
-            .filter(r => r.count > 0)
-            .sort((a, b) => b.avg - a.avg);
-
-        const ctx = document.getElementById('territEstadoDuracionChart');
+        const ctx = document.getElementById('territCantonTotalChart');
         if (!ctx || typeof Chart === 'undefined') return;
         Chart.getChart(ctx)?.destroy();
 
-        territEstadoDurInst = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: rows.map(r => r.label),
-                datasets: [{
-                    label: 'Días promedio',
-                    data: rows.map(r => r.avg),
-                    backgroundColor: rows.map(r => r.color),
-                    borderRadius: 4,
-                    borderSkipped: false,
-                    maxBarThickness: 26
-                }]
-            },
-            options: {
-                indexAxis: 'y',
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: { duration: 400 },
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: c => ` ${c.parsed.x.toLocaleString()} días (promedio · ${rows[c.dataIndex].count} trámites)`
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        beginAtZero: true,
-                        grid: { color: '#ECEFF1' },
-                        ticks: { precision: 0 },
-                        title: { display: true, text: 'Días', color: '#5F6368', font: { size: 11, weight: '500' } }
-                    },
-                    y: { grid: { display: false }, ticks: { font: { size: 11 } } }
-                }
-            }
-        });
-    })();
-
-    // ── CHART 2: Tiempo Promedio por Cantón ────────────────────────────
-    (function renderCantonDuracion() {
-        const agg = {};
-        intake.forEach(i => {
-            const c = getCanton(i);
-            const d = diasVivos(i);
-            if (!c || d === null) return;
-            if (!agg[c]) agg[c] = { sum: 0, count: 0 };
-            agg[c].sum += d;
-            agg[c].count++;
-        });
-
-        const rows = Object.entries(agg)
-            .map(([c, v]) => ({ canton: c, avg: Math.round(v.sum / v.count), count: v.count }))
-            .sort((a, b) => b.avg - a.avg);
-
-        const ctx = document.getElementById('territCantonDuracionChart');
-        if (!ctx || typeof Chart === 'undefined') return;
-        Chart.getChart(ctx)?.destroy();
-
-        territCantonDurInst = new Chart(ctx, {
+        territCantonTotalInst = new Chart(ctx, {
             type: 'bar',
             data: {
                 labels: rows.map(r => r.canton),
                 datasets: [{
-                    label: 'Días promedio',
-                    data: rows.map(r => r.avg),
+                    label: 'Trámites',
+                    data: rows.map(r => r.count),
                     backgroundColor: '#1A3C6E',
                     borderRadius: 4,
                     borderSkipped: false,
@@ -2680,7 +2657,7 @@ function renderTerritorialidadPage() {
                     legend: { display: false },
                     tooltip: {
                         callbacks: {
-                            label: c => ` ${c.parsed.x.toLocaleString()} días (promedio · ${rows[c.dataIndex].count} trámites)`
+                            label: c => ` ${c.parsed.x.toLocaleString()} trámites`
                         }
                     }
                 },
@@ -2689,7 +2666,7 @@ function renderTerritorialidadPage() {
                         beginAtZero: true,
                         grid: { color: '#ECEFF1' },
                         ticks: { precision: 0 },
-                        title: { display: true, text: 'Días', color: '#5F6368', font: { size: 11, weight: '500' } }
+                        title: { display: true, text: 'Trámites', color: '#5F6368', font: { size: 11, weight: '500' } }
                     },
                     y: { grid: { display: false }, ticks: { font: { size: 11 }, autoSkip: false } }
                 }
@@ -2848,16 +2825,16 @@ function renderTerritorialidadPage() {
         });
     })();
 
-    // ── TABLA: Detalle territorial ──────────────────────────────────────
+    // ── TABLA: Detalle territorial (cantidades) ─────────────────────────
     (function renderTabla() {
         const tbody = document.getElementById('territ-tbody');
         if (!tbody) return;
 
-        const agg = {}; // canton -> { parroquias:Set, total, enProceso, finalizado, detenido, diasSum, diasCount, dexSum, dexCount }
+        const agg = {}; // canton -> { parroquias:Set, total, enProceso, finalizado, detenido }
         intake.forEach(i => {
             const c = getCanton(i);
             if (!c) return;
-            if (!agg[c]) agg[c] = { parroquias: new Set(), total: 0, enProceso: 0, finalizado: 0, detenido: 0, diasSum: 0, diasCount: 0, dexSum: 0, dexCount: 0 };
+            if (!agg[c]) agg[c] = { parroquias: new Set(), total: 0, enProceso: 0, finalizado: 0, detenido: 0 };
             const a = agg[c];
             const p = getParroquia(i); if (p) a.parroquias.add(p);
             a.total++;
@@ -2865,10 +2842,9 @@ function renderTerritorialidadPage() {
             if (est === 'en_proceso') a.enProceso++;
             else if (est === 'finalizado') a.finalizado++;
             else if (est === 'detenido') a.detenido++;
-            const d = diasVivos(i); if (d !== null) { a.diasSum += d; a.diasCount++; }
-            const dex = diasDex(i); if (dex !== null) { a.dexSum += dex; a.dexCount++; }
         });
 
+        const totalGlobal = intake.length || 1;
         const rows = Object.entries(agg)
             .map(([c, v]) => ({
                 canton: c,
@@ -2877,13 +2853,12 @@ function renderTerritorialidadPage() {
                 enProceso: v.enProceso,
                 finalizado: v.finalizado,
                 detenido: v.detenido,
-                promDias: v.diasCount > 0 ? Math.round(v.diasSum / v.diasCount) : 0,
-                promDex: v.dexCount > 0 ? Math.round(v.dexSum / v.dexCount) : 0
+                pct: (v.total / totalGlobal) * 100
             }))
             .sort((a, b) => b.total - a.total);
 
         if (rows.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="8" class="ls-empty">Sin datos territoriales para el filtro seleccionado</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" class="ls-empty">Sin datos territoriales para el filtro seleccionado</td></tr>`;
             return;
         }
 
@@ -2895,8 +2870,7 @@ function renderTerritorialidadPage() {
                 <td style="color:#E88B00">${r.enProceso.toLocaleString()}</td>
                 <td style="color:#007B4F">${r.finalizado.toLocaleString()}</td>
                 <td style="color:#A52422">${r.detenido.toLocaleString()}</td>
-                <td>${r.promDias.toLocaleString()}</td>
-                <td>${r.promDex.toLocaleString()}</td>
+                <td>${r.pct.toFixed(1)}%</td>
             </tr>
         `).join('');
     })();

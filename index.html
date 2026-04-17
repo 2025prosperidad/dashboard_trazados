@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard Trazados Viales - Prefectura de Pichincha</title>
-    <link rel="stylesheet" href="css/styles.css?v=20260417b">
+    <link rel="stylesheet" href="css/styles.css?v=20260417c">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link href="https://unpkg.com/lucide-static@latest/font/lucide.css" rel="stylesheet">
 </head>
@@ -288,6 +288,19 @@
                             <canvas id="prodFaseDuracionChart"></canvas>
                         </div>
                     </div>
+
+                    <!-- Chart: Tiempo Promedio por Estado -->
+                    <div class="tend-chart-card" style="margin-top:24px">
+                        <div class="tend-chart-header">
+                            <div>
+                                <h3 class="tend-chart-title">Tiempo Promedio por Estado</h3>
+                                <p class="tend-chart-subtitle">Días promedio que llevan los trámites en cada estado (ESTADO_ACTUAL)</p>
+                            </div>
+                        </div>
+                        <div class="tend-canvas-wrap">
+                            <canvas id="prodEstadoDuracionChart"></canvas>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -433,37 +446,22 @@
                     <!-- KPI row -->
                     <div class="kpi-row" id="territ-kpis"></div>
 
-                    <!-- Chart 1: Tiempo promedio por Estado (ESTADO_ACTUAL) -->
+                    <!-- Chart 1: Trámites por Cantón (total) -->
                     <div class="tend-chart-full">
                         <div class="tend-chart-card">
                             <div class="tend-chart-header">
                                 <div>
-                                    <h3 class="tend-chart-title">Tiempo Promedio por Estado</h3>
-                                    <p class="tend-chart-subtitle">Días promedio que llevan los trámites en cada estado (ESTADO_ACTUAL)</p>
-                                </div>
-                            </div>
-                            <div class="tend-canvas-wrap">
-                                <canvas id="territEstadoDuracionChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Chart 2: Tiempo promedio por Cantón -->
-                    <div class="tend-chart-full">
-                        <div class="tend-chart-card">
-                            <div class="tend-chart-header">
-                                <div>
-                                    <h3 class="tend-chart-title">Tiempo Promedio por Cantón</h3>
-                                    <p class="tend-chart-subtitle">Días promedio desde el inicio del trámite a la fecha actual por cantón</p>
+                                    <h3 class="tend-chart-title">Trámites por Cantón</h3>
+                                    <p class="tend-chart-subtitle">Cantidad total de trámites registrados en cada cantón</p>
                                 </div>
                             </div>
                             <div class="tend-canvas-wrap tend-canvas-tall">
-                                <canvas id="territCantonDuracionChart"></canvas>
+                                <canvas id="territCantonTotalChart"></canvas>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Chart 3: Trámites por Cantón (apilado por tipo) -->
+                    <!-- Chart 2: Trámites por Cantón (apilado por tipo) -->
                     <div class="tend-chart-full">
                         <div class="tend-chart-card">
                             <div class="tend-chart-header">
@@ -513,7 +511,7 @@
                         <div class="ls-table-card">
                             <div class="ls-chart-head">
                                 <h3 class="ls-chart-title">Detalle Territorial</h3>
-                                <p class="ls-chart-subtitle">Resumen de cantones con su número de parroquias, trámites, estado y días promedio</p>
+                                <p class="ls-chart-subtitle">Resumen de cantones con su número de parroquias, trámites y estado de ejecución</p>
                             </div>
                             <div class="ls-table-scroll">
                                 <table class="ls-table" id="territ-table">
@@ -525,8 +523,7 @@
                                             <th>En Proceso</th>
                                             <th>Finalizados</th>
                                             <th>Detenidos</th>
-                                            <th>Prom. Días</th>
-                                            <th>Prom. DEX</th>
+                                            <th>% del Total</th>
                                         </tr>
                                     </thead>
                                     <tbody id="territ-tbody"></tbody>
@@ -712,8 +709,8 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script src="js/api.js?v=20260417b"></script>
-    <script src="js/app.js?v=20260417b"></script>
+    <script src="js/api.js?v=20260417c"></script>
+    <script src="js/app.js?v=20260417c"></script>
 </body>
 
 </html>
