@@ -2372,6 +2372,21 @@ body {
     letter-spacing: 0.04em;
 }
 
+/* Fila de encabezados repetida en cada sección (evita perder contexto al scrollear) */
+.ls-repeat-head-row th {
+    background: #eef2f7;
+    color: #1a335d;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: none;
+    letter-spacing: 0;
+    padding: 6px 12px !important;
+    border-top: 1px solid #dadce0;
+    border-bottom: 1px solid #dadce0;
+    position: static;
+    box-shadow: none;
+}
+
 .ls-subsection-row--fase td {
     background: #fafbfc;
     color: #1a335d;

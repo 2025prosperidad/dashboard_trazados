@@ -620,6 +620,7 @@ async function loadData() {
     }
     normalizeDashboardData(dashboardData);
     try {
+        aplicarFiltroAnioActual();
         buildFilters();
         renderAllPages();
     } catch (err) {
@@ -627,6 +628,28 @@ async function loadData() {
     } finally {
         showLoading(false);
     }
+}
+
+/**
+ * Fija los filtros de F. Inicio Desde / Hasta al año actual (1-ene al 31-dic)
+ * y sincroniza tanto los inputs desktop como mobile.
+ */
+function aplicarFiltroAnioActual() {
+    const anio = new Date().getFullYear();
+    const desde = `${anio}-01-01`;
+    const hasta = `${anio}-12-31`;
+
+    filtroInicioDesde = desde;
+    filtroInicioHasta = hasta;
+
+    const set = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.value = value;
+    };
+    set('filtro-inicio-desde', desde);
+    set('filtro-inicio-hasta', hasta);
+    set('filtro-inicio-desde-mobile', desde);
+    set('filtro-inicio-hasta-mobile', hasta);
 }
 
 function showLoading(show) {
@@ -1217,12 +1240,10 @@ function renderRankingPage() {
    PAGE 2: PRODUCTIVIDAD POR USUARIO (con tiempos)
    ========================================== */
 let prodTipoHBarInst = null;
-let prodDuracionChartInst = null;
 let prodFaseDuracionChartInst = null;
 
 function renderProductividadPage() {
     if (prodTipoHBarInst) { try { prodTipoHBarInst.destroy(); } catch (e) {} prodTipoHBarInst = null; }
-    if (prodDuracionChartInst) { try { prodDuracionChartInst.destroy(); } catch (e) {} prodDuracionChartInst = null; }
     if (prodFaseDuracionChartInst) { try { prodFaseDuracionChartInst.destroy(); } catch (e) {} prodFaseDuracionChartInst = null; }
 
     const intake = getFilteredIntake();
@@ -1509,41 +1530,47 @@ function renderProductividadPage() {
             : `<td class="ls-metric-cell"><div class="ls-metric-val" style="color:#ccc">—</div></td>`;
     }).join('');
 
-    // Máximos globales para escalar las barras de T. Total y T. DEX
-    let maxPromTotal = 0, maxPromDex = 0;
+    // Máximo global para escalar la barra de T. DEX
+    let maxPromDex = 0;
     Object.values(respByTipo).forEach(resps => Object.values(resps).forEach(b => {
-        const pt = b.total > 0 ? Math.round(b.totalDias / b.total) : 0;
         const pd = b.total > 0 ? Math.round(b.dexDias / b.total) : 0;
-        maxPromTotal = Math.max(maxPromTotal, pt);
-        maxPromDex   = Math.max(maxPromDex, pd);
+        maxPromDex = Math.max(maxPromDex, pd);
     }));
 
-    // Helper: celdas de T. Total y T. DEX con barra
-    const prodTiempoCells = (totalDias, dexDias, total) => {
-        const promTotal = total > 0 ? Math.round(totalDias / total) : 0;
-        const promDex   = total > 0 ? Math.round(dexDias   / total) : 0;
-        const pctTotal  = Math.min(100, Math.round((promTotal / Math.max(maxPromTotal, 1)) * 100));
-        const pctDex    = Math.min(100, Math.round((promDex   / Math.max(maxPromDex, 1)) * 100));
-        const cellTotal = promTotal > 0
-            ? `<td class="ls-metric-cell"><div class="ls-metric-val">${fmtDias(promTotal)}</div><div class="ls-bar-track"><div class="ls-bar-fill" style="width:${pctTotal}%;background:#1A3C6E"></div></div></td>`
-            : `<td class="ls-metric-cell"><div class="ls-metric-val" style="color:#ccc">—</div></td>`;
-        const cellDex = promDex > 0
+    // Helper: celda de T. DEX con barra
+    const prodDexCell = (dexDias, total) => {
+        const promDex = total > 0 ? Math.round(dexDias / total) : 0;
+        const pctDex  = Math.min(100, Math.round((promDex / Math.max(maxPromDex, 1)) * 100));
+        return promDex > 0
             ? `<td class="ls-metric-cell"><div class="ls-metric-val">${fmtDias(promDex)}</div><div class="ls-bar-track"><div class="ls-bar-fill" style="width:${pctDex}%;background:#78909C"></div></div></td>`
             : `<td class="ls-metric-cell"><div class="ls-metric-val" style="color:#ccc">—</div></td>`;
-        return cellTotal + cellDex;
     };
 
+    // Fila de encabezados repetibles para secciones largas (evita perder el contexto al scrollear)
+    const headerRow = `<tr class="ls-repeat-head-row">
+        <th class="ls-col-idx">#</th>
+        <th class="ls-col-ambito">Ámbito</th>
+        <th class="ls-col-nombre">Nombre</th>
+        <th class="ls-col-metric" title="Tiempo DEX: días desde Fecha Sol. Oficio hasta el inicio del trámite (Start date)">T. DEX</th>
+        <th class="ls-col-metric">En Proceso</th>
+        <th class="ls-col-metric">Finalizado</th>
+        <th class="ls-col-metric">Detenido</th>
+        <th class="ls-col-metric">Derivación</th>
+        <th class="ls-col-metric">Sol. Info</th>
+        <th class="ls-col-metric">Archivado</th>
+    </tr>`;
+
     // ── Sección 1: Totales por tipo ──
-    html += `<tr class="ls-section-row"><td colspan="12">Tipos de trámite <span style="font-weight:400;font-size:11px;opacity:.7">(fases activas medidas hasta hoy · columnas = días prom. por estado)</span></td></tr>`;
+    html += `<tr class="ls-section-row"><td colspan="10">Tipos de trámite <span style="font-weight:400;font-size:11px;opacity:.7">(fases activas medidas hasta hoy · columnas = días prom. por estado)</span></td></tr>`;
+    html += headerRow;
 
     tiposOrdenados.forEach(tipoKey => {
         const tipoColor = TYPE_COLORS[tipoKey] || '#607D8B';
         const tipoByEstado = Object.fromEntries(ESTADOS_PROD.map(e => [e, { d: 0, c: 0 }]));
-        let tipoTotal = 0, tipoTotalDias = 0, tipoDexDias = 0;
+        let tipoTotal = 0, tipoDexDias = 0;
         Object.values(respByTipo[tipoKey]).forEach(b => {
-            tipoTotal     += b.total;
-            tipoTotalDias += b.totalDias;
-            tipoDexDias   += b.dexDias;
+            tipoTotal   += b.total;
+            tipoDexDias += b.dexDias;
             ESTADOS_PROD.forEach(e => {
                 tipoByEstado[e].d += b.byEstado[e].d;
                 tipoByEstado[e].c += b.byEstado[e].c;
@@ -1554,18 +1581,19 @@ function renderProductividadPage() {
             <td class="ls-col-idx">${idx}</td>
             <td><span class="ls-ambito-tag" style="background:#E3F2FD;color:#1565C0;border-color:#BBDEFB">TIPO</span></td>
             <td><span class="ls-type-dot" style="background:${tipoColor}"></span><strong>${escapeHtml(TYPE_NAMES[tipoKey] || tipoKey)}</strong></td>
-            ${lsMetricCell(tipoTotal, maxTotal, LS_BAR.total)}
-            ${prodTiempoCells(tipoTotalDias, tipoDexDias, tipoTotal)}
+            ${prodDexCell(tipoDexDias, tipoTotal)}
             ${prodEstadoCells(tipoByEstado)}
         </tr>`;
     });
 
     // ── Sección 2: Responsables por tipo ──
-    html += `<tr class="ls-section-row"><td colspan="12">Responsables por tipo de trámite</td></tr>`;
+    html += `<tr class="ls-section-row"><td colspan="10">Responsables por tipo de trámite</td></tr>`;
 
     tiposOrdenados.forEach(tipoKey => {
         const tipoColor = TYPE_COLORS[tipoKey] || '#607D8B';
-        html += `<tr class="ls-tipo-group-row"><td colspan="12"><span class="ls-type-dot" style="background:${tipoColor}"></span>${escapeHtml(TYPE_NAMES[tipoKey] || tipoKey)}</td></tr>`;
+        // Grupo por tipo + fila de encabezados repetida para que no se pierdan al scrollear
+        html += `<tr class="ls-tipo-group-row"><td colspan="10"><span class="ls-type-dot" style="background:${tipoColor}"></span>${escapeHtml(TYPE_NAMES[tipoKey] || tipoKey)}</td></tr>`;
+        html += headerRow;
 
         Object.entries(respByTipo[tipoKey])
             .sort((a, b) => b[1].total - a[1].total)
@@ -1577,8 +1605,7 @@ function renderProductividadPage() {
                     <td class="ls-col-idx">${idx}</td>
                     <td><span class="ls-ambito-tag ls-ambito-resp">Responsable</span></td>
                     <td title="${escapeHtml(resp)}"><strong>${escapeHtml(name)}</strong><span class="ls-subcode">${escapeHtml(code)}</span></td>
-                    ${lsMetricCell(stats.total, maxTotal, LS_BAR.total)}
-                    ${prodTiempoCells(stats.totalDias, stats.dexDias, stats.total)}
+                    ${prodDexCell(stats.dexDias, stats.total)}
                     ${prodEstadoCells(stats.byEstado)}
                 </tr>`;
             });
@@ -1598,7 +1625,8 @@ function renderProductividadPage() {
     });
     const sinTipoEntries = Object.entries(sinTipo).sort((a, b) => b[1].total - a[1].total);
     if (sinTipoEntries.length > 0) {
-        html += `<tr class="ls-subsection-row"><td colspan="12">Sin tipo identificado</td></tr>`;
+        html += `<tr class="ls-subsection-row"><td colspan="10">Sin tipo identificado</td></tr>`;
+        html += headerRow;
         sinTipoEntries.forEach(([resp, stats]) => {
             const name = getUserName(resp);
             const code = resp === 'Sin asignar' ? '—' : (resp.split('@')[0] || resp);
@@ -1607,58 +1635,13 @@ function renderProductividadPage() {
                 <td class="ls-col-idx">${idx}</td>
                 <td><span class="ls-ambito-tag ls-ambito-resp">Responsable</span></td>
                 <td title="${escapeHtml(resp)}"><strong>${escapeHtml(name)}</strong><span class="ls-subcode">${escapeHtml(code)}</span></td>
-                ${lsMetricCell(stats.total, maxTotal, LS_BAR.total)}
-                ${prodTiempoCells(stats.totalDias, stats.dexDias, stats.total)}
+                ${prodDexCell(stats.dexDias, stats.total)}
                 ${prodEstadoCells(stats.byEstado)}
             </tr>`;
         });
     }
 
-    tbody.innerHTML = html || `<tr><td colspan="12" class="ls-empty">Sin datos de tiempos disponibles</td></tr>`;
-
-    // ── Chart: Duración promedio por responsable (movido desde Tendencias) ──
-    (function renderProdDuracionChart() {
-        const respDur = {};
-        filteredTiempos.forEach(t => {
-            if (!t.fecha_hora) return;
-            const tramite = intake.find(i => i.id === t.id_tramite);
-            if (!tramite) return;
-            const raw = (tramite.Responsible || '').trim();
-            const key = raw.toLowerCase() || '__sin_asignar__';
-            const inicio = new Date(t.fecha_hora);
-            const fin = t.fecha_hora_fin ? new Date(t.fecha_hora_fin) : now;
-            if (isNaN(inicio)) return;
-            const dias = Math.max(0, Math.floor((fin - inicio) / 86400000));
-            if (!respDur[key]) respDur[key] = { sum: 0, count: 0, raw: raw || 'Sin asignar' };
-            respDur[key].sum += dias;
-            respDur[key].count++;
-        });
-
-        const sorted = Object.entries(respDur)
-            .map(([, { sum, count, raw }]) => ({ name: getResponsibleAxisLabel(raw), avg: Math.round(sum / count) }))
-            .sort((a, b) => b.avg - a.avg).slice(0, 12);
-
-        const ctx = document.getElementById('prodDuracionChart');
-        if (!ctx || typeof Chart === 'undefined') return;
-        if (prodDuracionChartInst) prodDuracionChartInst.destroy();
-
-        const barColors = sorted.map(r => r.avg > 30 ? '#A52422' : r.avg > 14 ? '#E88B00' : '#007B4F');
-        prodDuracionChartInst = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: sorted.map(r => r.name),
-                datasets: [{ label: 'Días promedio', data: sorted.map(r => r.avg), backgroundColor: barColors, borderRadius: 4, borderSkipped: false, maxBarThickness: 22 }]
-            },
-            options: {
-                indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: { duration: 400 },
-                plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${c.parsed.x.toLocaleString()} días promedio` } } },
-                scales: {
-                    x: { beginAtZero: true, grid: { color: '#ECEFF1' }, ticks: { precision: 0 }, title: { display: true, text: 'Días', color: '#5F6368', font: { size: 11, weight: '500' } } },
-                    y: { grid: { display: false }, ticks: { font: { size: 11 }, autoSkip: false, maxRotation: 0 } }
-                }
-            }
-        });
-    })();
+    tbody.innerHTML = html || `<tr><td colspan="10" class="ls-empty">Sin datos de tiempos disponibles</td></tr>`;
 
     // ── Chart: Tiempo promedio por fase por técnico ──
     (function renderProdFaseDuracionChart() {

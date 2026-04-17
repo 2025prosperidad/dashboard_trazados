@@ -1,4 +1,8 @@
+node_modules/
 .claude/
 .DS_Store
 data_intake.json
 data_tiempos.json
+
+# Local Netlify folder
+.netlify

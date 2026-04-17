@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard Trazados Viales - Prefectura de Pichincha</title>
-    <link rel="stylesheet" href="css/styles.css?v=20260413c">
+    <link rel="stylesheet" href="css/styles.css?v=20260416a">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link href="https://unpkg.com/lucide-static@latest/font/lucide.css" rel="stylesheet">
 </head>
@@ -240,14 +240,6 @@
                             <canvas id="prodTipoHBarChart"></canvas>
                         </div>
                     </div>
-                    <div class="ls-chart-card" style="margin-top:16px">
-                        <div class="ls-chart-head">
-                            <h3 class="ls-chart-title">Responsables vs días promedio</h3>
-                        </div>
-                        <div class="ls-canvas-wrap">
-                            <canvas id="prodRespHBarChart"></canvas>
-                        </div>
-                    </div>
 
                     <!-- Tabla de tiempos por tipo/responsable (estilo Ranking) -->
                     <div class="ls-table-card" style="margin-top:16px">
@@ -262,8 +254,6 @@
                                         <th class="ls-col-idx">#</th>
                                         <th class="ls-col-ambito">Ámbito</th>
                                         <th class="ls-col-nombre">Nombre</th>
-                                        <th class="ls-col-metric">Total</th>
-                                        <th class="ls-col-metric" title="Tiempo Total: promedio de días sumando todas las fases del trámite">T. Total</th>
                                         <th class="ls-col-metric" title="Tiempo DEX: días desde Fecha Sol. Oficio hasta el inicio del trámite (Start date)">T. DEX</th>
                                         <th class="ls-col-metric">En Proceso</th>
                                         <th class="ls-col-metric">Finalizado</th>
@@ -279,29 +269,16 @@
                             </table>
                         </div>
                     </div>
-                    <!-- Charts de tiempos -->
-                    <div class="tend-chart-row" style="margin-top:24px">
-                        <div class="tend-chart-card">
-                            <div class="tend-chart-header">
-                                <div>
-                                    <h3 class="tend-chart-title">Duración Promedio por Responsable</h3>
-                                    <p class="tend-chart-subtitle">Días promedio por trámite asignado</p>
-                                </div>
-                            </div>
-                            <div class="tend-canvas-wrap">
-                                <canvas id="prodDuracionChart"></canvas>
+                    <!-- Chart: Tiempo Promedio por Fase -->
+                    <div class="tend-chart-card" style="margin-top:24px">
+                        <div class="tend-chart-header">
+                            <div>
+                                <h3 class="tend-chart-title">Tiempo Promedio por Fase</h3>
+                                <p class="tend-chart-subtitle">Días promedio que toma cada fase del trámite</p>
                             </div>
                         </div>
-                        <div class="tend-chart-card">
-                            <div class="tend-chart-header">
-                                <div>
-                                    <h3 class="tend-chart-title">Tiempo Promedio por Fase</h3>
-                                    <p class="tend-chart-subtitle">Días promedio que toma cada fase del trámite</p>
-                                </div>
-                            </div>
-                            <div class="tend-canvas-wrap">
-                                <canvas id="prodFaseDuracionChart"></canvas>
-                            </div>
+                        <div class="tend-canvas-wrap">
+                            <canvas id="prodFaseDuracionChart"></canvas>
                         </div>
                     </div>
                 </div>
@@ -605,8 +582,8 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script src="js/api.js?v=20260413c"></script>
-    <script src="js/app.js?v=20260413c"></script>
+    <script src="js/api.js?v=20260416a"></script>
+    <script src="js/app.js?v=20260416a"></script>
 </body>
 
 </html>
