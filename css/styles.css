@@ -2301,9 +2301,16 @@ body {
 
 .ls-table-scroll {
     overflow-x: auto;
-    overflow-y: visible;
+    overflow-y: auto;
+    max-height: 72vh;
     margin-top: 8px;
     -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 768px) {
+    .ls-table-scroll {
+        max-height: 65vh;
+    }
 }
 
 .data-table.ls-table {
@@ -2350,6 +2357,9 @@ body {
     text-transform: uppercase;
     letter-spacing: 0.06em;
     padding: 8px 12px !important;
+    position: sticky;
+    top: 38px;
+    z-index: 2;
 }
 
 .ls-subsection-row td {
@@ -2370,9 +2380,12 @@ body {
     padding: 10px 12px !important;
     border-top: 2px solid #0d1f3d;
     letter-spacing: 0.04em;
+    position: sticky;
+    top: 38px;
+    z-index: 2;
 }
 
-/* Fila de encabezados repetida en cada sección (evita perder contexto al scrollear) */
+/* Fila de encabezados repetida en cada sección (pegada bajo la fila de sección) */
 .ls-repeat-head-row th {
     background: #eef2f7;
     color: #1a335d;
@@ -2383,8 +2396,10 @@ body {
     padding: 6px 12px !important;
     border-top: 1px solid #dadce0;
     border-bottom: 1px solid #dadce0;
-    position: static;
-    box-shadow: none;
+    position: sticky;
+    top: 72px;
+    z-index: 1;
+    box-shadow: 0 1px 0 #dadce0;
 }
 
 .ls-subsection-row--fase td {

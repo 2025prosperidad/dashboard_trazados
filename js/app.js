@@ -15,8 +15,6 @@ let filtroInicioDesde = '';
 let filtroInicioHasta = '';
 let filtroCumplDesde = '';
 let filtroCumplHasta = '';
-let filtroDexDesde = '';
-let filtroDexHasta = '';
 let filtroCanton = 'Todos';
 let filtroParroquia = 'Todos';
 
@@ -563,20 +561,6 @@ function getFilteredIntake() {
         data = data.filter(i => (i.PARROQUIA || '').trim() === filtroParroquia);
     }
 
-    // Fecha DEX (Fecha_Sol_Oficio)
-    if (filtroDexDesde || filtroDexHasta) {
-        const dDesde = parseDateOnly(filtroDexDesde + "T00:00:00");
-        const dHasta = parseDateOnly(filtroDexHasta + "T00:00:00");
-
-        data = data.filter(i => {
-            const itemDate = parseDateOnly(i.Fecha_Sol_Oficio);
-            if (!itemDate) return false;
-            if (dDesde && itemDate < dDesde) return false;
-            if (dHasta && itemDate > dHasta) return false;
-            return true;
-        });
-    }
-
     // Fecha de Inicio (Start date)
     if (filtroInicioDesde || filtroInicioHasta) {
         const dDesde = parseDateOnly(filtroInicioDesde + "T00:00:00");
@@ -644,7 +628,7 @@ async function loadData() {
 }
 
 /**
- * Fija los filtros de fechas (DEX, Inicio) al año actual (1-ene al 31-dic)
+ * Fija el filtro de F. Inicio Desde/Hasta al año actual (1-ene al 31-dic)
  * y sincroniza tanto los inputs desktop como mobile.
  */
 function aplicarFiltroAnioActual() {
@@ -652,8 +636,6 @@ function aplicarFiltroAnioActual() {
     const desde = `${anio}-01-01`;
     const hasta = `${anio}-12-31`;
 
-    filtroDexDesde = desde;
-    filtroDexHasta = hasta;
     filtroInicioDesde = desde;
     filtroInicioHasta = hasta;
 
@@ -661,10 +643,6 @@ function aplicarFiltroAnioActual() {
         const el = document.getElementById(id);
         if (el) el.value = value;
     };
-    set('filtro-dex-desde', desde);
-    set('filtro-dex-hasta', hasta);
-    set('filtro-dex-desde-mobile', desde);
-    set('filtro-dex-hasta-mobile', hasta);
     set('filtro-inicio-desde', desde);
     set('filtro-inicio-hasta', hasta);
     set('filtro-inicio-desde-mobile', desde);
@@ -882,18 +860,6 @@ function _syncDateInputs(desktopId, mobileId, value) {
     const m = document.getElementById(mobileId);
     if (d && d.value !== value) d.value = value;
     if (m && m.value !== value) m.value = value;
-}
-
-function onFiltroDexDesdeChange(value) {
-    filtroDexDesde = value;
-    _syncDateInputs('filtro-dex-desde', 'filtro-dex-desde-mobile', value);
-    renderAllPages();
-}
-
-function onFiltroDexHastaChange(value) {
-    filtroDexHasta = value;
-    _syncDateInputs('filtro-dex-hasta', 'filtro-dex-hasta-mobile', value);
-    renderAllPages();
 }
 
 function onFiltroInicioDesdeChange(value) {
@@ -1718,6 +1684,7 @@ function renderProductividadPage() {
         if (prodFaseDuracionChartInst) prodFaseDuracionChartInst.destroy();
 
         const tipo2color = sorted.map(r => TYPE_COLORS[extractTipo(r.code)] || '#607D8B');
+        const fullNames = sorted.map(r => r.name);
         prodFaseDuracionChartInst = new Chart(ctx, {
             type: 'bar',
             data: {
@@ -1726,7 +1693,15 @@ function renderProductividadPage() {
             },
             options: {
                 indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: { duration: 400 },
-                plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${c.parsed.x.toLocaleString()} días promedio` } } },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            title: items => items.length ? fullNames[items[0].dataIndex] : '',
+                            label: c => ` ${c.parsed.x.toLocaleString()} días promedio`
+                        }
+                    }
+                },
                 scales: {
                     x: { beginAtZero: true, grid: { color: '#ECEFF1' }, ticks: { precision: 0 }, title: { display: true, text: 'Días', color: '#5F6368', font: { size: 11, weight: '500' } } },
                     y: { grid: { display: false }, ticks: { font: { size: 11 }, autoSkip: false, maxRotation: 0 } }
