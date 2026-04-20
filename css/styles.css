@@ -2313,29 +2313,20 @@ body {
     }
 }
 
-/* En Ranking usamos scroll de página, no interno: así los headers sticky
-   quedan fijos respecto al viewport cuando se scrollea la pestaña. */
+/* En Ranking forzamos scroll interno corto para que los sticky headers
+   (thead y filas de tipo) queden siempre visibles al hacer scroll
+   dentro de la tabla. */
 .page-looker .ls-table-scroll {
-    overflow-x: clip;
-    overflow-y: visible;
-    max-height: none;
+    overflow-x: auto;
+    overflow-y: auto;
+    max-height: 60vh;
+    -webkit-overflow-scrolling: touch;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 768px) {
     .page-looker .ls-table-scroll {
-        overflow-x: auto;
-        overflow-y: visible;
+        max-height: 55vh;
     }
-}
-
-/* Offsets sticky específicos para Ranking, para que no los tape la barra
-   de filtros fija ni el header de la página. */
-.page-looker .data-table.ls-table thead th {
-    top: 0;
-}
-
-.page-looker .ls-tipo-group-row td {
-    top: 38px;
 }
 
 .data-table.ls-table {

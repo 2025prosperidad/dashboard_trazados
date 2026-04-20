@@ -1283,11 +1283,13 @@ function renderRankingPage() {
 let prodTipoHBarInst = null;
 let prodFaseDuracionChartInst = null;
 let prodEstadoDuracionChartInst = null;
+let prodFinalizadosTipoInst = null;
 
 function renderProductividadPage() {
     if (prodTipoHBarInst) { try { prodTipoHBarInst.destroy(); } catch (e) {} prodTipoHBarInst = null; }
     if (prodFaseDuracionChartInst) { try { prodFaseDuracionChartInst.destroy(); } catch (e) {} prodFaseDuracionChartInst = null; }
     if (prodEstadoDuracionChartInst) { try { prodEstadoDuracionChartInst.destroy(); } catch (e) {} prodEstadoDuracionChartInst = null; }
+    if (prodFinalizadosTipoInst) { try { prodFinalizadosTipoInst.destroy(); } catch (e) {} prodFinalizadosTipoInst = null; }
 
     const intake = getFilteredIntake();
     const { tiempos } = dashboardData;
@@ -1350,6 +1352,30 @@ function renderProductividadPage() {
     const allDias = Object.entries(tramiteDias).filter(([id]) => intakeIds.has(id)).map(([, d]) => d);
     const maxDiasGlobal = allDias.length ? Math.max(...allDias) : 0;
     const minDiasGlobal = allDias.filter(d => d > 0).length ? Math.min(...allDias.filter(d => d > 0)) : 0;
+
+    // ── Scorecards por estado (mismo estilo que Ranking) ──
+    const estadoCountsProd = {};
+    intake.forEach(item => {
+        const estado = getEstadoTramite(item, tiempos);
+        estadoCountsProd[estado] = (estadoCountsProd[estado] || 0) + 1;
+    });
+    const prodEstadoContainer = document.getElementById('prod-estado-badges');
+    if (prodEstadoContainer) {
+        let html = `
+            <div class="ls-scorecard">
+                <span class="ls-scorecard-label">TOTAL</span>
+                <span class="ls-scorecard-value" style="color:#1A3C6E">${intake.length.toLocaleString()}</span>
+            </div>`;
+        Object.entries(estadoCountsProd).forEach(([estado, count]) => {
+            const cfg = ESTADO_CONFIG[estado] || ESTADO_CONFIG.en_proceso;
+            html += `
+                <div class="ls-scorecard">
+                    <span class="ls-scorecard-label">${cfg.label}</span>
+                    <span class="ls-scorecard-value" style="color:${cfg.color}">${count.toLocaleString()}</span>
+                </div>`;
+        });
+        prodEstadoContainer.innerHTML = html;
+    }
 
     document.getElementById('prod-kpis').innerHTML = `
         <div class="kpi-card">
@@ -1803,6 +1829,74 @@ function renderProductividadPage() {
                 },
                 scales: {
                     x: { beginAtZero: true, grid: { color: '#ECEFF1' }, ticks: { precision: 0 }, title: { display: true, text: 'Días', color: '#5F6368', font: { size: 11, weight: '500' } } },
+                    y: { grid: { display: false }, ticks: { font: { size: 11 } } }
+                }
+            }
+        });
+    })();
+
+    // ── Gráfico: Trámites Finalizados por Tipo de Trámite ──
+    (function renderProdFinalizadosTipoChart() {
+        const ctx = document.getElementById('prodFinalizadosTipoChart');
+        if (!ctx || typeof Chart === 'undefined') return;
+        Chart.getChart(ctx)?.destroy();
+
+        // Contar finalizados por tipo
+        const counts = {};
+        intake.forEach(item => {
+            const tipo = extractTipo(item.Fase_del_Tramite);
+            if (!tipo) return;
+            const estado = getEstadoTramite(item, tiempos);
+            if (estado !== 'finalizado') return;
+            counts[tipo] = (counts[tipo] || 0) + 1;
+        });
+
+        const rows = Object.entries(counts)
+            .map(([code, count]) => ({
+                code,
+                name: TYPE_NAMES[code] || code,
+                color: TYPE_COLORS[code] || '#007B4F',
+                count
+            }))
+            .sort((a, b) => b.count - a.count);
+
+        if (rows.length === 0) {
+            prodFinalizadosTipoInst = new Chart(ctx, {
+                type: 'bar',
+                data: { labels: ['Sin datos'], datasets: [{ label: 'Finalizados', data: [0], backgroundColor: '#E0E0E0' }] },
+                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+            return;
+        }
+
+        prodFinalizadosTipoInst = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: rows.map(r => r.name),
+                datasets: [{
+                    label: 'Trámites finalizados',
+                    data: rows.map(r => r.count),
+                    backgroundColor: rows.map(r => r.color),
+                    borderRadius: 4,
+                    borderSkipped: false,
+                    maxBarThickness: 28
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 400 },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: c => ` ${c.parsed.x.toLocaleString()} trámite${c.parsed.x === 1 ? '' : 's'} finalizado${c.parsed.x === 1 ? '' : 's'}`
+                        }
+                    }
+                },
+                scales: {
+                    x: { beginAtZero: true, grid: { color: '#ECEFF1' }, ticks: { precision: 0, stepSize: 1 }, title: { display: true, text: 'Cantidad de trámites', color: '#5F6368', font: { size: 11, weight: '500' } } },
                     y: { grid: { display: false }, ticks: { font: { size: 11 } } }
                 }
             }
