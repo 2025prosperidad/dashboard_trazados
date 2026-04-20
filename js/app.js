@@ -15,6 +15,8 @@ let filtroInicioDesde = '';
 let filtroInicioHasta = '';
 let filtroCumplDesde = '';
 let filtroCumplHasta = '';
+let filtroDexDesde = '';
+let filtroDexHasta = '';
 let filtroCanton = 'Todos';
 let filtroParroquia = 'Todos';
 
@@ -561,6 +563,20 @@ function getFilteredIntake() {
         data = data.filter(i => (i.PARROQUIA || '').trim() === filtroParroquia);
     }
 
+    // Fecha DEX (Fecha_Sol_Oficio)
+    if (filtroDexDesde || filtroDexHasta) {
+        const dDesde = parseDateOnly(filtroDexDesde + "T00:00:00");
+        const dHasta = parseDateOnly(filtroDexHasta + "T00:00:00");
+
+        data = data.filter(i => {
+            const itemDate = parseDateOnly(i.Fecha_Sol_Oficio);
+            if (!itemDate) return false;
+            if (dDesde && itemDate < dDesde) return false;
+            if (dHasta && itemDate > dHasta) return false;
+            return true;
+        });
+    }
+
     // Fecha de Inicio (Start date)
     if (filtroInicioDesde || filtroInicioHasta) {
         const dDesde = parseDateOnly(filtroInicioDesde + "T00:00:00");
@@ -860,6 +876,18 @@ function _syncDateInputs(desktopId, mobileId, value) {
     const m = document.getElementById(mobileId);
     if (d && d.value !== value) d.value = value;
     if (m && m.value !== value) m.value = value;
+}
+
+function onFiltroDexDesdeChange(value) {
+    filtroDexDesde = value;
+    _syncDateInputs('filtro-dex-desde', 'filtro-dex-desde-mobile', value);
+    renderAllPages();
+}
+
+function onFiltroDexHastaChange(value) {
+    filtroDexHasta = value;
+    _syncDateInputs('filtro-dex-hasta', 'filtro-dex-hasta-mobile', value);
+    renderAllPages();
 }
 
 function onFiltroInicioDesdeChange(value) {
