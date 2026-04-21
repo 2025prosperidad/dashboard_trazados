@@ -20,6 +20,12 @@
  * Dónde sacar APP_ID y APPLICATION_ACCESS_KEY (AppSheet):
  *   Editor de la app → menú "Data" → sección API / "Integrations" → habilitar API
  *   → copiar "App ID" y "Application Access Key" (no uses el texto TU_APP_ID de ejemplo).
+ *
+ * Si el log muestra "Filas en response.Rows (AppSheet): 0" pero la app sí tiene datos:
+ *   - Revisa el nombre de TABLE_NAME (debe coincidir con Data → Tables en AppSheet).
+ *   - Muy frecuente: Security filter en la tabla que con la identidad por defecto del API
+ *     no devuelve filas. Pon RUN_AS_USER_EMAIL con un usuario que vea todos los trámites
+ *     (p. ej. el dueño o un supervisor), según documentación RunAsUserEmail.
  */
 
 const CONFIG = {
@@ -43,6 +49,18 @@ const CONFIG = {
   COLUMNA_ESTADO_EN_HOJA: 'B',
   /** Fila donde empiezan los datos (1 = cabecera en fila 1) */
   FILA_ENCABEZADO: 1,
+
+  /**
+   * Opcional: correo con el que ejecutar el Find (propiedad RunAsUserEmail).
+   * Úsalo si Security filter / particiones usan USEREMAIL() y el Find devuelve 0 filas.
+   */
+  RUN_AS_USER_EMAIL: '',
+
+  /**
+   * Opcional: Selector AppSheet fijo (ej. 'Filter(Intake_form, true)').
+   * Si está vacío, el script prueba sin Selector y luego Filter(TABLE_NAME, true).
+   */
+  FIND_SELECTOR: '',
 };
 
 /**
@@ -70,9 +88,38 @@ function assertConfigFilled_() {
 }
 
 /**
- * POST Find a AppSheet y devuelve el array Rows (o []).
+ * Extrae el array de filas del JSON de respuesta AppSheet (varias formas posibles).
  */
-function fetchRowsFromAppSheet_() {
+function extractRowsFromAppSheetJson_(json) {
+  if (!json || typeof json !== 'object') return [];
+  if (Array.isArray(json)) return json;
+  if (Array.isArray(json.Rows)) return json.Rows;
+  if (Array.isArray(json.rows)) return json.rows;
+  if (json.data && Array.isArray(json.data.Rows)) return json.data.Rows;
+  return [];
+}
+
+/**
+ * Construye Properties del Find (Locale, opcional RunAsUserEmail, opcional Selector).
+ */
+function buildFindProperties_(selector) {
+  const props = {
+    Locale: 'es-EC',
+    Timezone: 'America/Guayaquil',
+  };
+  const runAs = (CONFIG.RUN_AS_USER_EMAIL || '').trim();
+  if (runAs.indexOf('@') !== -1) {
+    props.RunAsUserEmail = runAs;
+  }
+  const sel = (selector || (CONFIG.FIND_SELECTOR || '').trim()).trim();
+  if (sel) props.Selector = sel;
+  return props;
+}
+
+/**
+ * POST Find; devuelve { code, text, json } (json puede ser null si el cuerpo no es JSON).
+ */
+function appSheetFindRaw_(selector) {
   const tableEnc = encodeURIComponent(CONFIG.TABLE_NAME);
   const url =
     'https://' +
@@ -85,10 +132,7 @@ function fetchRowsFromAppSheet_() {
 
   const payload = {
     Action: 'Find',
-    Properties: {
-      Locale: 'es-EC',
-      Timezone: 'America/Guayaquil',
-    },
+    Properties: buildFindProperties_(selector),
     Rows: [],
   };
 
@@ -103,19 +147,80 @@ function fetchRowsFromAppSheet_() {
   const response = UrlFetchApp.fetch(url, options);
   const code = response.getResponseCode();
   const text = response.getContentText();
+  let json = null;
+  try {
+    json = JSON.parse(text);
+  } catch (e) {
+    json = null;
+  }
+  return { code: code, text: text, json: json };
+}
 
-  if (code < 200 || code >= 300) {
-    var hint = '';
-    if (code === 400 && text.indexOf('not found') !== -1 && String(CONFIG.APP_ID).indexOf('TU_') === 0) {
-      hint =
-        ' Parece que APP_ID sigue siendo de ejemplo; reemplázalo por el App ID real en CONFIG.';
-    }
-    throw new Error('AppSheet HTTP ' + code + ': ' + text.slice(0, 500) + hint);
+/**
+ * POST Find a AppSheet: varios intentos si Rows viene vacío (Selector / identidad).
+ */
+function fetchRowsFromAppSheet_() {
+  const attempts = [];
+
+  const fixedSel = (CONFIG.FIND_SELECTOR || '').trim();
+  if (fixedSel) {
+    attempts.push({ label: 'FIND_SELECTOR configurado', selector: fixedSel });
+  } else {
+    attempts.push({ label: 'Find sin Selector (documentación “Read all rows”)', selector: null });
+    attempts.push({
+      label: 'Find con Filter(TABLE_NAME, true)',
+      selector: 'Filter(' + CONFIG.TABLE_NAME + ', true)',
+    });
   }
 
-  const json = JSON.parse(text);
-  const rows = json.Rows || json.rows || [];
-  return rows;
+  let lastText = '';
+  let lastCode = 0;
+
+  for (let a = 0; a < attempts.length; a++) {
+    const att = attempts[a];
+    Logger.log('AppSheet Find: intento — ' + att.label);
+
+    const res = appSheetFindRaw_(att.selector);
+    lastCode = res.code;
+    lastText = res.text;
+
+    if (res.code < 200 || res.code >= 300) {
+      var hint = '';
+      if (res.code === 400 && res.text.indexOf('not found') !== -1 && String(CONFIG.APP_ID).indexOf('TU_') === 0) {
+        hint =
+          ' Parece que APP_ID sigue siendo de ejemplo; reemplázalo por el App ID real en CONFIG.';
+      }
+      throw new Error('AppSheet HTTP ' + res.code + ': ' + res.text.slice(0, 500) + hint);
+    }
+
+    if (!res.json) {
+      Logger.log('La respuesta no es JSON válido (primeros 400 caracteres): ' + res.text.substring(0, 400));
+      throw new Error('AppSheet devolvió cuerpo no JSON. HTTP ' + res.code);
+    }
+
+    const rows = extractRowsFromAppSheetJson_(res.json);
+    Logger.log('  → filas extraídas: ' + rows.length);
+
+    if (rows.length > 0) {
+      return rows;
+    }
+
+    Logger.log('  → claves en JSON: ' + JSON.stringify(Object.keys(res.json)));
+  }
+
+  Logger.log(
+    'DIAGNÓSTICO: Todos los intentos devolvieron 0 filas. Muestra del cuerpo (max 1200 chars):\n' +
+      lastText.substring(0, 1200)
+  );
+  Logger.log(
+    'Si la app tiene datos: (1) Verifica TABLE_NAME = nombre exacto en Data → Tables. ' +
+      '(2) Activa CONFIG.RUN_AS_USER_EMAIL con un usuario que vea la tabla (Security filter / USEREMAIL()). ' +
+      '(3) Prueba en Postman el mismo Find y revisa Security filters de ' +
+      CONFIG.TABLE_NAME +
+      '.'
+  );
+
+  return [];
 }
 
 /**
