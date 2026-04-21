@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard Trazados Viales - Prefectura de Pichincha</title>
-    <link rel="stylesheet" href="css/styles.css?v=20260421b">
+    <link rel="stylesheet" href="css/styles.css?v=20260421c">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link href="https://unpkg.com/lucide-static@latest/font/lucide.css" rel="stylesheet">
 </head>
@@ -239,12 +239,12 @@
                         <!-- Filled by JS: total + conteo por estado -->
                     </div>
 
-                    <!-- Gráfico 1: Finalizados por tipo (cantidad + días promedio) -->
+                    <!-- Gráfico 1: Finalizados por tipo — solo tiempos (días); cantidades en tooltip -->
                     <div class="ls-chart-card" style="margin-top:16px">
                         <div class="ls-chart-head">
-                            <h3 class="ls-chart-title">Trámites Finalizados por Tipo de Trámite</h3>
+                            <h3 class="ls-chart-title">Tiempos por tipo (solo trámites finalizados)</h3>
                             <p class="ls-chart-sub" id="prod-finalizados-caption"></p>
-                            <p class="ls-chart-sub" style="font-size:11px;opacity:.88;margin-top:2px">Solo trámites en estado <strong>Finalizado</strong>. Eje inferior: cantidad; eje superior: días promedio. <strong>Tiempo DEX</strong>: días desde <strong>Fecha Solicitud de Oficio</strong> hasta <strong>Start date</strong> (inicio del trámite).</p>
+                            <p class="ls-chart-sub" style="font-size:11px;opacity:.88;margin-top:2px">Barras = días promedio. Pasa el mouse para ver también cuántos <strong>finalizados</strong> hay por tipo. <strong>DEX</strong>: días desde <strong>Fecha Solicitud de Oficio</strong> hasta <strong>Start date</strong>.</p>
                         </div>
                         <div class="ls-canvas-wrap">
                             <canvas id="prodFinalizadosTipoChart"></canvas>
@@ -727,8 +727,8 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script src="js/api.js?v=20260421b"></script>
-    <script src="js/app.js?v=20260421b"></script>
+    <script src="js/api.js?v=20260421c"></script>
+    <script src="js/app.js?v=20260421c"></script>
 </body>
 
 </html>

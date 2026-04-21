@@ -1344,10 +1344,17 @@ function renderProductividadPage() {
 
     // ── Texto común: trámites en el rango de filtros (todas las vistas de esta pestaña) ──
     const prodRangeCaption = `${intake.length.toLocaleString()} trámite${intake.length !== 1 ? 's' : ''} en el rango seleccionado`;
-    ['prod-finalizados-caption', 'prod-tipo-caption', 'prod-table-range-caption', 'prod-fase-range-caption', 'prod-estado-range-caption'].forEach(id => {
+    ['prod-tipo-caption', 'prod-table-range-caption', 'prod-fase-range-caption', 'prod-estado-range-caption'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.textContent = prodRangeCaption;
     });
+    const finEnFiltro = intake.filter(i => getEstadoTramite(i, tiempos) === 'finalizado').length;
+    const capFin = document.getElementById('prod-finalizados-caption');
+    if (capFin) {
+        capFin.textContent =
+            `${finEnFiltro.toLocaleString()} finalizado${finEnFiltro !== 1 ? 's' : ''} en el filtro · ` +
+            `${intake.length.toLocaleString()} trámite${intake.length !== 1 ? 's' : ''} en total en el rango`;
+    }
 
     // ── Scorecards por estado (mismo estilo que Ranking) ──
     const estadoCountsProd = {};
@@ -1384,7 +1391,7 @@ function renderProductividadPage() {
         });
     }));
 
-    // ── Gráfico 1: Finalizados por tipo — cantidad (eje inferior) + días promedio (eje superior) ──
+    // ── Gráfico 1: Solo tiempos (días) por tipo entre finalizados; cantidad solo en tooltip ──
     (function renderProdFinalizadosTipoChart() {
         const ctx = document.getElementById('prodFinalizadosTipoChart');
         if (!ctx || typeof Chart === 'undefined') return;
@@ -1405,12 +1412,11 @@ function renderProductividadPage() {
             .map(([code, { n, sumDias, sumDex }]) => ({
                 code,
                 name: TYPE_NAMES[code] || code,
-                color: TYPE_COLORS[code] || '#007B4F',
                 count: n,
                 avgDias: n > 0 ? Math.round(sumDias / n) : 0,
                 avgDex: n > 0 ? Math.round(sumDex / n) : 0
             }))
-            .sort((a, b) => b.count - a.count);
+            .sort((a, b) => b.avgDias - a.avgDias);
 
         if (rows.length === 0) {
             prodFinalizadosTipoInst = new Chart(ctx, {
@@ -1418,10 +1424,9 @@ function renderProductividadPage() {
                 data: {
                     labels: ['Sin trámites finalizados en el filtro'],
                     datasets: [{
-                        label: 'Cantidad',
+                        label: 'Prom. días totales',
                         data: [0],
                         backgroundColor: '#E0E0E0',
-                        xAxisID: 'x',
                         borderRadius: 4,
                         maxBarThickness: 24
                     }]
@@ -1432,7 +1437,7 @@ function renderProductividadPage() {
                     maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
                     scales: {
-                        x: { beginAtZero: true, grid: { color: '#ECEFF1' }, ticks: { precision: 0 } },
+                        x: { beginAtZero: true, grid: { color: '#ECEFF1' }, ticks: { precision: 0 }, title: { display: true, text: 'Días promedio', color: '#5F6368', font: { size: 11 } } },
                         y: { grid: { display: false } }
                     }
                 }
@@ -1446,19 +1451,9 @@ function renderProductividadPage() {
                 labels: rows.map(r => r.name),
                 datasets: [
                     {
-                        label: 'Trámites finalizados (cant.)',
-                        data: rows.map(r => r.count),
-                        backgroundColor: rows.map(r => r.color),
-                        xAxisID: 'x',
-                        borderRadius: 4,
-                        borderSkipped: false,
-                        maxBarThickness: 22
-                    },
-                    {
                         label: 'Prom. días totales (suma fases)',
                         data: rows.map(r => r.avgDias),
                         backgroundColor: '#1565C0',
-                        xAxisID: 'x1',
                         borderRadius: 4,
                         borderSkipped: false,
                         maxBarThickness: 22
@@ -1467,7 +1462,6 @@ function renderProductividadPage() {
                         label: 'Prom. DEX (Sol. Oficio → Start date)',
                         data: rows.map(r => r.avgDex),
                         backgroundColor: '#78909C',
-                        xAxisID: 'x1',
                         borderRadius: 4,
                         borderSkipped: false,
                         maxBarThickness: 22
@@ -1479,7 +1473,7 @@ function renderProductividadPage() {
                 responsive: true,
                 maintainAspectRatio: false,
                 animation: { duration: 400 },
-                datasets: { bar: { categoryPercentage: 0.72, barPercentage: 0.85 } },
+                datasets: { bar: { categoryPercentage: 0.75, barPercentage: 0.88 } },
                 plugins: {
                     legend: {
                         display: true,
@@ -1488,30 +1482,26 @@ function renderProductividadPage() {
                     },
                     tooltip: {
                         callbacks: {
+                            title: items => (items.length ? rows[items[0].dataIndex].name : ''),
                             label: c => {
-                                const r = rows[c.dataIndex];
                                 const v = c.parsed.x;
-                                if (c.datasetIndex === 0) return ` ${v.toLocaleString()} finalizado${v === 1 ? '' : 's'}`;
-                                if (c.datasetIndex === 1) return ` ${v.toLocaleString()} días (prom. total · ${r.count} trámite${r.count === 1 ? '' : 's'})`;
-                                return ` ${v.toLocaleString()} días (prom. DEX · ${r.count} trámite${r.count === 1 ? '' : 's'})`;
+                                if (c.datasetIndex === 0) return ` ${v.toLocaleString()} días (prom. total)`;
+                                return ` ${v.toLocaleString()} días (prom. DEX)`;
+                            },
+                            afterBody: items => {
+                                if (!items.length) return [];
+                                const r = rows[items[0].dataIndex];
+                                return [
+                                    `Trámites finalizados (cant.): ${r.count.toLocaleString()}`
+                                ];
                             }
                         }
                     }
                 },
                 scales: {
                     x: {
-                        type: 'linear',
-                        position: 'bottom',
                         beginAtZero: true,
                         grid: { color: '#ECEFF1' },
-                        ticks: { precision: 0 },
-                        title: { display: true, text: 'Cantidad (finalizados)', color: '#5F6368', font: { size: 11, weight: '500' } }
-                    },
-                    x1: {
-                        type: 'linear',
-                        position: 'top',
-                        beginAtZero: true,
-                        grid: { display: false },
                         ticks: { precision: 0 },
                         title: { display: true, text: 'Días promedio', color: '#5F6368', font: { size: 11, weight: '500' } }
                     },
