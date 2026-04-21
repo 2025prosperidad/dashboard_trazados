@@ -1342,16 +1342,12 @@ function renderProductividadPage() {
         if (b.byEstado[estado]) { b.byEstado[estado].d += dias; b.byEstado[estado].c++; }
     });
 
-    // ── KPIs ──
-    const totalTramites = intake.length;
-    let totalDiasGlobal = 0, countConTiempos = 0;
-    Object.entries(tramiteDias).forEach(([id, d]) => {
-        if (intakeIds.has(id)) { totalDiasGlobal += d; countConTiempos++; }
+    // ── Texto común: trámites en el rango de filtros (todas las vistas de esta pestaña) ──
+    const prodRangeCaption = `${intake.length.toLocaleString()} trámite${intake.length !== 1 ? 's' : ''} en el rango seleccionado`;
+    ['prod-finalizados-caption', 'prod-tipo-caption', 'prod-table-range-caption', 'prod-fase-range-caption', 'prod-estado-range-caption'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = prodRangeCaption;
     });
-    const promDiasTramite = countConTiempos > 0 ? (totalDiasGlobal / countConTiempos).toFixed(1) : '0';
-    const allDias = Object.entries(tramiteDias).filter(([id]) => intakeIds.has(id)).map(([, d]) => d);
-    const maxDiasGlobal = allDias.length ? Math.max(...allDias) : 0;
-    const minDiasGlobal = allDias.filter(d => d > 0).length ? Math.min(...allDias.filter(d => d > 0)) : 0;
 
     // ── Scorecards por estado (mismo estilo que Ranking) ──
     const estadoCountsProd = {};
@@ -1377,25 +1373,6 @@ function renderProductividadPage() {
         prodEstadoContainer.innerHTML = html;
     }
 
-    document.getElementById('prod-kpis').innerHTML = `
-        <div class="kpi-card">
-            <span class="kpi-label">Total Trámites</span>
-            <span class="kpi-value" style="color:#1A3C6E">${totalTramites}</span>
-        </div>
-        <div class="kpi-card">
-            <span class="kpi-label">Prom. Días/Trámite</span>
-            <span class="kpi-value" style="color:#A52422">${promDiasTramite}</span>
-        </div>
-        <div class="kpi-card">
-            <span class="kpi-label">Mín. Días</span>
-            <span class="kpi-value" style="color:#007B4F">${minDiasGlobal}</span>
-        </div>
-        <div class="kpi-card">
-            <span class="kpi-label">Máx. Días</span>
-            <span class="kpi-value" style="color:#7B1FA2">${maxDiasGlobal}</span>
-        </div>
-    `;
-
     // ── Máximo global de días por estado (para escalar barras) ──
     const maxByEstado = Object.fromEntries(ESTADOS_PROD.map(e => [e, 0]));
     let maxTotal = 0;
@@ -1407,7 +1384,144 @@ function renderProductividadPage() {
         });
     }));
 
-    // ── Gráfico: Días promedio por tipo — barras apiladas (DEX + fases) ──
+    // ── Gráfico 1: Finalizados por tipo — cantidad (eje inferior) + días promedio (eje superior) ──
+    (function renderProdFinalizadosTipoChart() {
+        const ctx = document.getElementById('prodFinalizadosTipoChart');
+        if (!ctx || typeof Chart === 'undefined') return;
+        Chart.getChart(ctx)?.destroy();
+
+        const agg = {};
+        intake.forEach(item => {
+            const tipo = extractTipo(item.Fase_del_Tramite);
+            if (!tipo) return;
+            if (getEstadoTramite(item, tiempos) !== 'finalizado') return;
+            if (!agg[tipo]) agg[tipo] = { n: 0, sumDias: 0, sumDex: 0 };
+            agg[tipo].n++;
+            agg[tipo].sumDias += (tramiteDias[item.id] || 0);
+            agg[tipo].sumDex += (tramiteDexDias[item.id] || 0);
+        });
+
+        const rows = Object.entries(agg)
+            .map(([code, { n, sumDias, sumDex }]) => ({
+                code,
+                name: TYPE_NAMES[code] || code,
+                color: TYPE_COLORS[code] || '#007B4F',
+                count: n,
+                avgDias: n > 0 ? Math.round(sumDias / n) : 0,
+                avgDex: n > 0 ? Math.round(sumDex / n) : 0
+            }))
+            .sort((a, b) => b.count - a.count);
+
+        if (rows.length === 0) {
+            prodFinalizadosTipoInst = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Sin trámites finalizados en el filtro'],
+                    datasets: [{
+                        label: 'Cantidad',
+                        data: [0],
+                        backgroundColor: '#E0E0E0',
+                        xAxisID: 'x',
+                        borderRadius: 4,
+                        maxBarThickness: 24
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { beginAtZero: true, grid: { color: '#ECEFF1' }, ticks: { precision: 0 } },
+                        y: { grid: { display: false } }
+                    }
+                }
+            });
+            return;
+        }
+
+        prodFinalizadosTipoInst = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: rows.map(r => r.name),
+                datasets: [
+                    {
+                        label: 'Trámites finalizados (cant.)',
+                        data: rows.map(r => r.count),
+                        backgroundColor: rows.map(r => r.color),
+                        xAxisID: 'x',
+                        borderRadius: 4,
+                        borderSkipped: false,
+                        maxBarThickness: 22
+                    },
+                    {
+                        label: 'Prom. días totales (suma fases)',
+                        data: rows.map(r => r.avgDias),
+                        backgroundColor: '#1565C0',
+                        xAxisID: 'x1',
+                        borderRadius: 4,
+                        borderSkipped: false,
+                        maxBarThickness: 22
+                    },
+                    {
+                        label: 'Prom. DEX (Sol. Oficio → Start date)',
+                        data: rows.map(r => r.avgDex),
+                        backgroundColor: '#78909C',
+                        xAxisID: 'x1',
+                        borderRadius: 4,
+                        borderSkipped: false,
+                        maxBarThickness: 22
+                    }
+                ]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 400 },
+                datasets: { bar: { categoryPercentage: 0.72, barPercentage: 0.85 } },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: { usePointStyle: true, boxWidth: 10, padding: 10, font: { size: 10 } }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: c => {
+                                const r = rows[c.dataIndex];
+                                const v = c.parsed.x;
+                                if (c.datasetIndex === 0) return ` ${v.toLocaleString()} finalizado${v === 1 ? '' : 's'}`;
+                                if (c.datasetIndex === 1) return ` ${v.toLocaleString()} días (prom. total · ${r.count} trámite${r.count === 1 ? '' : 's'})`;
+                                return ` ${v.toLocaleString()} días (prom. DEX · ${r.count} trámite${r.count === 1 ? '' : 's'})`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: 'linear',
+                        position: 'bottom',
+                        beginAtZero: true,
+                        grid: { color: '#ECEFF1' },
+                        ticks: { precision: 0 },
+                        title: { display: true, text: 'Cantidad (finalizados)', color: '#5F6368', font: { size: 11, weight: '500' } }
+                    },
+                    x1: {
+                        type: 'linear',
+                        position: 'top',
+                        beginAtZero: true,
+                        grid: { display: false },
+                        ticks: { precision: 0 },
+                        title: { display: true, text: 'Días promedio', color: '#5F6368', font: { size: 11, weight: '500' } }
+                    },
+                    y: { grid: { display: false }, ticks: { font: { size: 11 } } }
+                }
+            }
+        });
+    })();
+
+    // ── Gráfico 2: Días promedio por tipo — barras apiladas (DEX + fases) ──
     if (typeof Chart !== 'undefined') {
         const fasesData = dashboardData.fases || [];
 
@@ -1533,13 +1647,6 @@ function renderProductividadPage() {
                         padding: 12,
                         font: { size: 11 }
                     }
-                };
-                opts.plugins.subtitle = {
-                    display: true,
-                    text: `${intake.length} trámite${intake.length !== 1 ? 's' : ''} en el rango seleccionado`,
-                    color: '#5F6368',
-                    font: { size: 11 },
-                    padding: { bottom: 8 }
                 };
                 opts.plugins.tooltip.callbacks = {
                     title: items => TYPE_NAMES[tipoList[items[0].dataIndex]] || tipoList[items[0].dataIndex],
@@ -1829,74 +1936,6 @@ function renderProductividadPage() {
                 },
                 scales: {
                     x: { beginAtZero: true, grid: { color: '#ECEFF1' }, ticks: { precision: 0 }, title: { display: true, text: 'Días', color: '#5F6368', font: { size: 11, weight: '500' } } },
-                    y: { grid: { display: false }, ticks: { font: { size: 11 } } }
-                }
-            }
-        });
-    })();
-
-    // ── Gráfico: Trámites Finalizados por Tipo de Trámite ──
-    (function renderProdFinalizadosTipoChart() {
-        const ctx = document.getElementById('prodFinalizadosTipoChart');
-        if (!ctx || typeof Chart === 'undefined') return;
-        Chart.getChart(ctx)?.destroy();
-
-        // Contar finalizados por tipo
-        const counts = {};
-        intake.forEach(item => {
-            const tipo = extractTipo(item.Fase_del_Tramite);
-            if (!tipo) return;
-            const estado = getEstadoTramite(item, tiempos);
-            if (estado !== 'finalizado') return;
-            counts[tipo] = (counts[tipo] || 0) + 1;
-        });
-
-        const rows = Object.entries(counts)
-            .map(([code, count]) => ({
-                code,
-                name: TYPE_NAMES[code] || code,
-                color: TYPE_COLORS[code] || '#007B4F',
-                count
-            }))
-            .sort((a, b) => b.count - a.count);
-
-        if (rows.length === 0) {
-            prodFinalizadosTipoInst = new Chart(ctx, {
-                type: 'bar',
-                data: { labels: ['Sin datos'], datasets: [{ label: 'Finalizados', data: [0], backgroundColor: '#E0E0E0' }] },
-                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-            });
-            return;
-        }
-
-        prodFinalizadosTipoInst = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: rows.map(r => r.name),
-                datasets: [{
-                    label: 'Trámites finalizados',
-                    data: rows.map(r => r.count),
-                    backgroundColor: rows.map(r => r.color),
-                    borderRadius: 4,
-                    borderSkipped: false,
-                    maxBarThickness: 28
-                }]
-            },
-            options: {
-                indexAxis: 'y',
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: { duration: 400 },
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: c => ` ${c.parsed.x.toLocaleString()} trámite${c.parsed.x === 1 ? '' : 's'} finalizado${c.parsed.x === 1 ? '' : 's'}`
-                        }
-                    }
-                },
-                scales: {
-                    x: { beginAtZero: true, grid: { color: '#ECEFF1' }, ticks: { precision: 0, stepSize: 1 }, title: { display: true, text: 'Cantidad de trámites', color: '#5F6368', font: { size: 11, weight: '500' } } },
                     y: { grid: { display: false }, ticks: { font: { size: 11 } } }
                 }
             }

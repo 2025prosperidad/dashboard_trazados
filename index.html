@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard Trazados Viales - Prefectura de Pichincha</title>
-    <link rel="stylesheet" href="css/styles.css?v=20260420a">
+    <link rel="stylesheet" href="css/styles.css?v=20260421b">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link href="https://unpkg.com/lucide-static@latest/font/lucide.css" rel="stylesheet">
 </head>
@@ -238,27 +238,28 @@
                     <div id="prod-estado-badges" class="ls-scorecard-row">
                         <!-- Filled by JS: total + conteo por estado -->
                     </div>
-                    <div class="kpi-row" id="prod-kpis">
-                        <!-- Filled by JS -->
-                    </div>
-                    <!-- Gráficos: Días promedio por tipo y por responsable -->
-                    <div class="ls-chart-card" style="margin-top:16px">
-                        <div class="ls-chart-head">
-                            <h3 class="ls-chart-title">Tipos de trámite vs días promedio</h3>
-                        </div>
-                        <div class="ls-canvas-wrap">
-                            <canvas id="prodTipoHBarChart"></canvas>
-                        </div>
-                    </div>
 
-                    <!-- Gráfico: Trámites Finalizados por Tipo de Trámite -->
+                    <!-- Gráfico 1: Finalizados por tipo (cantidad + días promedio) -->
                     <div class="ls-chart-card" style="margin-top:16px">
                         <div class="ls-chart-head">
                             <h3 class="ls-chart-title">Trámites Finalizados por Tipo de Trámite</h3>
-                            <span class="ls-chart-legend-chip"><span class="ls-legend-swatch" style="background:#007B4F"></span> Finalizados</span>
+                            <p class="ls-chart-sub" id="prod-finalizados-caption"></p>
+                            <p class="ls-chart-sub" style="font-size:11px;opacity:.88;margin-top:2px">Solo trámites en estado <strong>Finalizado</strong>. Eje inferior: cantidad; eje superior: días promedio. <strong>Tiempo DEX</strong>: días desde <strong>Fecha Solicitud de Oficio</strong> hasta <strong>Start date</strong> (inicio del trámite).</p>
                         </div>
                         <div class="ls-canvas-wrap">
                             <canvas id="prodFinalizadosTipoChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Gráfico 2: Días promedio por tipo (DEX + fases) -->
+                    <div class="ls-chart-card" style="margin-top:16px">
+                        <div class="ls-chart-head">
+                            <h3 class="ls-chart-title">Tipos de trámite vs días promedio</h3>
+                            <p class="ls-chart-sub" id="prod-tipo-caption"></p>
+                            <p class="ls-chart-sub" style="font-size:11px;opacity:.88;margin-top:2px">Primer segmento de la barra (DEX): días desde <strong>Fecha Solicitud de Oficio</strong> hasta <strong>Start date</strong>. Resto: días promedio por fase.</p>
+                        </div>
+                        <div class="ls-canvas-wrap">
+                            <canvas id="prodTipoHBarChart"></canvas>
                         </div>
                     </div>
 
@@ -266,7 +267,8 @@
                     <div class="ls-table-card" style="margin-top:16px">
                         <div class="ls-chart-head">
                             <h3 class="ls-chart-title">Tiempos por tipo de trámite y responsable</h3>
-                            <p class="ls-chart-sub">Fases activas medidas hasta hoy · T. DEX = días desde Sol. Oficio hasta inicio · T. Total = suma de todas las fases</p>
+                            <p class="ls-chart-sub" id="prod-table-range-caption"></p>
+                            <p class="ls-chart-sub">Fases activas medidas hasta hoy · <strong>T. DEX</strong> = días desde Fecha Solicitud de Oficio hasta <strong>Start date</strong> · T. Total = suma de todas las fases</p>
                         </div>
                         <div class="ls-table-scroll">
                             <table class="data-table ls-table" id="prod-ls-table">
@@ -296,6 +298,7 @@
                             <div>
                                 <h3 class="tend-chart-title">Tiempo Promedio por Fase</h3>
                                 <p class="tend-chart-subtitle">Días promedio que toma cada fase del trámite</p>
+                                <p class="tend-chart-subtitle" id="prod-fase-range-caption" style="margin-top:6px;color:#5f6368;font-size:12px"></p>
                             </div>
                         </div>
                         <div class="tend-canvas-wrap">
@@ -309,6 +312,7 @@
                             <div>
                                 <h3 class="tend-chart-title">Tiempo Promedio por Estado</h3>
                                 <p class="tend-chart-subtitle">Días promedio que llevan los trámites en cada estado (ESTADO_ACTUAL)</p>
+                                <p class="tend-chart-subtitle" id="prod-estado-range-caption" style="margin-top:6px;color:#5f6368;font-size:12px"></p>
                             </div>
                         </div>
                         <div class="tend-canvas-wrap">
@@ -723,8 +727,8 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script src="js/api.js?v=20260420a"></script>
-    <script src="js/app.js?v=20260420a"></script>
+    <script src="js/api.js?v=20260421b"></script>
+    <script src="js/app.js?v=20260421b"></script>
 </body>
 
 </html>
