@@ -16,10 +16,16 @@
  *
  * Ajusta CONFIG y ejecuta syncEstadoDesdeAppSheet() o programa syncEstadoDesdeAppSheet
  * cada minuto en un disparador instalado.
+ *
+ * Dónde sacar APP_ID y APPLICATION_ACCESS_KEY (AppSheet):
+ *   Editor de la app → menú "Data" → sección API / "Integrations" → habilitar API
+ *   → copiar "App ID" y "Application Access Key" (no uses el texto TU_APP_ID de ejemplo).
  */
 
 const CONFIG = {
+  /** Reemplaza por el App ID real (UUID o cadena que muestra AppSheet). Si dejas TU_APP_ID, la API responde 400 "not found". */
   APP_ID: 'TU_APP_ID',
+  /** Clave larga tipo V2-xxxxx... del mismo pantalla API de AppSheet */
   APPLICATION_ACCESS_KEY: 'TU_APPLICATION_ACCESS_KEY',
   /** Dominio según tu cuenta (global: www.appsheet.com; EU: eu.appsheet.com; etc.) */
   REGION_HOST: 'www.appsheet.com',
@@ -38,6 +44,30 @@ const CONFIG = {
   /** Fila donde empiezan los datos (1 = cabecera en fila 1) */
   FILA_ENCABEZADO: 1,
 };
+
+/**
+ * Evita llamar a AppSheet con los marcadores de plantilla (error 400 "App ... not found").
+ */
+function assertConfigFilled_() {
+  const errs = [];
+  if (!CONFIG.APP_ID || CONFIG.APP_ID === 'TU_APP_ID') {
+    errs.push('CONFIG.APP_ID');
+  }
+  if (!CONFIG.APPLICATION_ACCESS_KEY || CONFIG.APPLICATION_ACCESS_KEY === 'TU_APPLICATION_ACCESS_KEY') {
+    errs.push('CONFIG.APPLICATION_ACCESS_KEY');
+  }
+  if (!CONFIG.SPREADSHEET_ID || CONFIG.SPREADSHEET_ID === 'TU_SPREADSHEET_ID') {
+    errs.push('CONFIG.SPREADSHEET_ID');
+  }
+  if (errs.length) {
+    throw new Error(
+      'Configura en Código.gs los valores reales de: ' +
+        errs.join(', ') +
+        '. El error "App with id TU_APP_ID not found" significa que aún está el ejemplo: ' +
+        'pega el App ID que muestra AppSheet (Data → API), guarda el proyecto y vuelve a ejecutar.'
+    );
+  }
+}
 
 /**
  * POST Find a AppSheet y devuelve el array Rows (o []).
@@ -75,7 +105,12 @@ function fetchRowsFromAppSheet_() {
   const text = response.getContentText();
 
   if (code < 200 || code >= 300) {
-    throw new Error('AppSheet HTTP ' + code + ': ' + text.slice(0, 500));
+    var hint = '';
+    if (code === 400 && text.indexOf('not found') !== -1 && String(CONFIG.APP_ID).indexOf('TU_') === 0) {
+      hint =
+        ' Parece que APP_ID sigue siendo de ejemplo; reemplázalo por el App ID real en CONFIG.';
+    }
+    throw new Error('AppSheet HTTP ' + code + ': ' + text.slice(0, 500) + hint);
   }
 
   const json = JSON.parse(text);
@@ -114,6 +149,7 @@ function mapStatusById_(appRows) {
  * Sincronización principal: lee AppSheet, recorre la hoja por ID y escribe ESTADO_ACTUAL.
  */
 function syncEstadoDesdeAppSheet() {
+  assertConfigFilled_();
   const appRows = fetchRowsFromAppSheet_();
   Logger.log('Filas en response.Rows (AppSheet): ' + appRows.length);
 
