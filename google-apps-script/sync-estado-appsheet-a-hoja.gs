@@ -29,18 +29,21 @@
  */
 
 const CONFIG = {
-  /** Reemplaza por el App ID real (UUID o cadena que muestra AppSheet). Si dejas TU_APP_ID, la API responde 400 "not found". */
-  APP_ID: 'TU_APP_ID',
-  /** Clave larga tipo V2-xxxxx... del mismo pantalla API de AppSheet */
-  APPLICATION_ACCESS_KEY: 'TU_APPLICATION_ACCESS_KEY',
+  APP_ID: '156f5e61-3921-4762-9710-87ffa1f49619',
+  /**
+   * Clave V2-... de AppSheet (Data → API). Preferible: déjala vacía y define la propiedad
+   * de script APP_SHEET_APPLICATION_ACCESS_KEY (Proyecto → engrane → Propiedades del script)
+   * para no guardar secretos en texto plano si compartes el código.
+   */
+  APPLICATION_ACCESS_KEY: '',
   /** Dominio según tu cuenta (global: www.appsheet.com; EU: eu.appsheet.com; etc.) */
   REGION_HOST: 'www.appsheet.com',
   /** Nombre exacto de la tabla en AppSheet (URL-encoded si tiene espacios) */
   TABLE_NAME: 'Intake_form',
   /** Columna en AppSheet que trae el estado (nombre exacto) */
   COLUMNA_STATUS_APPSHEET: 'Status',
-  /** ID de la hoja de Google */
-  SPREADSHEET_ID: 'TU_SPREADSHEET_ID',
+  /** ID de la hoja de Google (entre /d/ y /edit en la URL) */
+  SPREADSHEET_ID: '1LaATbQJpXc7iA-BHh5ZWx41bB_T0UwpyOH8eTDyXo_o',
   /** Nombre de la pestaña donde está Intake_form */
   NOMBRE_HOJA: 'Intake_form',
   /** Letra de la columna que es CLAVE para alinear con AppSheet (misma que en el dashboard, p. ej. "id") */
@@ -51,10 +54,10 @@ const CONFIG = {
   FILA_ENCABEZADO: 1,
 
   /**
-   * Opcional: correo con el que ejecutar el Find (propiedad RunAsUserEmail).
-   * Úsalo si Security filter / particiones usan USEREMAIL() y el Find devuelve 0 filas.
+   * Find ejecutado como este usuario (Security filters / USEREMAIL() en tablas).
+   * Creador de la app / usuario con visión completa en filtros.
    */
-  RUN_AS_USER_EMAIL: '',
+  RUN_AS_USER_EMAIL: 'expert@infinity-solutions.community',
 
   /**
    * Opcional: Selector AppSheet fijo (ej. 'Filter(Intake_form, true)').
@@ -64,25 +67,33 @@ const CONFIG = {
 };
 
 /**
- * Evita llamar a AppSheet con los marcadores de plantilla (error 400 "App ... not found").
+ * Clave de API: CONFIG o propiedad de script APP_SHEET_APPLICATION_ACCESS_KEY.
+ */
+function getApplicationAccessKey_() {
+  const fromProps = PropertiesService.getScriptProperties().getProperty('APP_SHEET_APPLICATION_ACCESS_KEY');
+  const fromConfig = (CONFIG.APPLICATION_ACCESS_KEY || '').trim();
+  return (fromProps && String(fromProps).trim()) || fromConfig;
+}
+
+/**
+ * Evita ejecutar sin App ID, hoja o clave de acceso.
  */
 function assertConfigFilled_() {
   const errs = [];
   if (!CONFIG.APP_ID || CONFIG.APP_ID === 'TU_APP_ID') {
     errs.push('CONFIG.APP_ID');
   }
-  if (!CONFIG.APPLICATION_ACCESS_KEY || CONFIG.APPLICATION_ACCESS_KEY === 'TU_APPLICATION_ACCESS_KEY') {
-    errs.push('CONFIG.APPLICATION_ACCESS_KEY');
+  if (!getApplicationAccessKey_()) {
+    errs.push('CONFIG.APPLICATION_ACCESS_KEY o propiedad APP_SHEET_APPLICATION_ACCESS_KEY');
   }
   if (!CONFIG.SPREADSHEET_ID || CONFIG.SPREADSHEET_ID === 'TU_SPREADSHEET_ID') {
     errs.push('CONFIG.SPREADSHEET_ID');
   }
   if (errs.length) {
     throw new Error(
-      'Configura en Código.gs los valores reales de: ' +
+      'Configura en Código.gs: ' +
         errs.join(', ') +
-        '. El error "App with id TU_APP_ID not found" significa que aún está el ejemplo: ' +
-        'pega el App ID que muestra AppSheet (Data → API), guarda el proyecto y vuelve a ejecutar.'
+        '. Para la clave: pégala en APPLICATION_ACCESS_KEY o crea la propiedad del script APP_SHEET_APPLICATION_ACCESS_KEY.'
     );
   }
 }
@@ -139,7 +150,7 @@ function appSheetFindRaw_(selector) {
   const options = {
     method: 'post',
     contentType: 'application/json',
-    headers: { ApplicationAccessKey: CONFIG.APPLICATION_ACCESS_KEY },
+    headers: { ApplicationAccessKey: getApplicationAccessKey_() },
     payload: JSON.stringify(payload),
     muteHttpExceptions: true,
   };
@@ -160,6 +171,9 @@ function appSheetFindRaw_(selector) {
  * POST Find a AppSheet: varios intentos si Rows viene vacío (Selector / identidad).
  */
 function fetchRowsFromAppSheet_() {
+  const runAs = (CONFIG.RUN_AS_USER_EMAIL || '').trim();
+  Logger.log('RunAsUserEmail en Find: ' + (runAs ? runAs : '(no definido — puede devolver 0 filas con security filters)'));
+
   const attempts = [];
 
   const fixedSel = (CONFIG.FIND_SELECTOR || '').trim();
