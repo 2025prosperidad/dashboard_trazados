@@ -1445,76 +1445,57 @@ function renderProductividadPage() {
             return;
         }
 
+        const optsFin = lsHBarOptions();
+        optsFin.plugins.legend = {
+            display: true,
+            position: 'top',
+            labels: {
+                usePointStyle: true,
+                pointStyle: 'rect',
+                boxWidth: 10,
+                padding: 12,
+                font: { size: 11 }
+            }
+        };
+        optsFin.plugins.tooltip.callbacks = {
+            title: items => (items.length ? rows[items[0].dataIndex].name : ''),
+            label: c => {
+                const v = c.parsed.x;
+                if (c.datasetIndex === 0) return ` ${v.toLocaleString()} días (prom. DEX)`;
+                return ` ${v.toLocaleString()} días (prom. fases)`;
+            },
+            afterBody: items => {
+                if (!items.length) return [];
+                const r = rows[items[0].dataIndex];
+                return [`Trámites finalizados (cant.): ${r.count.toLocaleString()}`];
+            }
+        };
+        optsFin.scales.x.stacked = true;
+        optsFin.scales.x.title = { display: true, text: 'Días promedio por trámite', color: '#5F6368', font: { size: 11 } };
+        optsFin.scales.y.stacked = true;
+
         prodFinalizadosTipoInst = new Chart(ctx, {
             type: 'bar',
             data: {
                 labels: rows.map(r => r.name),
                 datasets: [
                     {
-                        label: 'Prom. días totales (suma fases)',
-                        data: rows.map(r => r.avgDias),
-                        backgroundColor: '#1565C0',
-                        stack: 'tiempos',
-                        borderRadius: 4,
-                        borderSkipped: false,
-                        maxBarThickness: 22
-                    },
-                    {
-                        label: 'Prom. DEX (Sol. Oficio → Start date)',
+                        label: 'DEX',
                         data: rows.map(r => r.avgDex),
                         backgroundColor: '#78909C',
                         stack: 'tiempos',
-                        borderRadius: 4,
-                        borderSkipped: false,
-                        maxBarThickness: 22
+                        maxBarThickness: 28
+                    },
+                    {
+                        label: 'Prom. fases (sin DEX)',
+                        data: rows.map(r => r.avgDias),
+                        backgroundColor: '#1A3C6E',
+                        stack: 'tiempos',
+                        maxBarThickness: 28
                     }
                 ]
             },
-            options: {
-                indexAxis: 'y',
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: { duration: 400 },
-                datasets: { bar: { categoryPercentage: 0.75, barPercentage: 0.88 } },
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: 'top',
-                        labels: { usePointStyle: true, boxWidth: 10, padding: 10, font: { size: 10 } }
-                    },
-                    tooltip: {
-                        callbacks: {
-                            title: items => (items.length ? rows[items[0].dataIndex].name : ''),
-                            label: c => {
-                                const v = c.parsed.x;
-                                if (c.datasetIndex === 0) return ` ${v.toLocaleString()} días (prom. total)`;
-                                return ` ${v.toLocaleString()} días (prom. DEX)`;
-                            },
-                            afterBody: items => {
-                                if (!items.length) return [];
-                                const r = rows[items[0].dataIndex];
-                                return [
-                                    `Trámites finalizados (cant.): ${r.count.toLocaleString()}`
-                                ];
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        beginAtZero: true,
-                        stacked: true,
-                        grid: { color: '#ECEFF1' },
-                        ticks: { precision: 0 },
-                        title: { display: true, text: 'Días promedio', color: '#5F6368', font: { size: 11, weight: '500' } }
-                    },
-                    y: {
-                        stacked: true,
-                        grid: { display: false },
-                        ticks: { font: { size: 11 } }
-                    }
-                }
-            }
+            options: optsFin
         });
     })();
 
