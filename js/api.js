@@ -123,6 +123,11 @@ async function fetchAllDashboardData() {
         const ueRowsAlt   = await getSheetRows('Usuario_equipo');
         const derCat1Rows = await getSheetRows('Der_Cat1');
         const derCat2Rows = await getSheetRows('Der_Cat2');
+        // Historico de estados por tramite (fecha_hora, fecha_hora_fin, estado, fase, id_tramite)
+        let estadosTramitesRows = await getSheetRows('Estados_tramites');
+        if (!Array.isArray(estadosTramitesRows) || estadosTramitesRows.length === 0) {
+            estadosTramitesRows = await getSheetRowsFirstNonEmpty(['Estados_Tramites', 'estados_tramites', 'Estados Tramites']);
+        }
 
         const asArray = (res) => (Array.isArray(res?.data) ? res.data : []);
         let usuarioEquipo = ueRowsAlt;
@@ -163,7 +168,8 @@ async function fetchAllDashboardData() {
             usuarioEquipo,
             usuarios,
             derCat1: der1,
-            derCat2: der2
+            derCat2: der2,
+            estadosTramites: Array.isArray(estadosTramitesRows) ? estadosTramitesRows : []
         };
     } catch (error) {
         console.error('Error fetching dashboard data:', error);

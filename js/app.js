@@ -617,9 +617,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function normalizeDashboardData(d) {
     if (!d) return;
-    ['intake', 'fases', 'tiempos', 'tipos', 'equipos', 'usuarioEquipo', 'derCat1', 'derCat2'].forEach((k) => {
+    ['intake', 'fases', 'tiempos', 'tipos', 'equipos', 'usuarioEquipo', 'derCat1', 'derCat2', 'estadosTramites'].forEach((k) => {
         if (!Array.isArray(d[k])) d[k] = [];
     });
+}
+
+/**
+ * Construye un mapa { id_tramite: { sumDias, count } } con la suma de dias
+ * de cada estado en la hoja Estados_tramites.
+ *   - fecha_hora -> inicio del estado
+ *   - fecha_hora_fin -> fin del estado (si esta vacia, el estado sigue abierto
+ *     y se contabiliza hasta hoy)
+ *   - Si inicio == fin (p. ej. "Tramite Archivado") aporta 0 dias.
+ */
+function buildTramiteEstadosDiasMap(estadosRows) {
+    const map = {};
+    if (!Array.isArray(estadosRows) || estadosRows.length === 0) return map;
+    const now = new Date();
+    estadosRows.forEach(r => {
+        const id = String(r.id_tramite || r.ID_tramite || r.ID_TRAMITE || '').trim();
+        if (!id) return;
+        const rawInicio = r.fecha_hora || r.Fecha_hora || r.FECHA_HORA || '';
+        const rawFin    = r.fecha_hora_fin || r.Fecha_hora_fin || r.FECHA_HORA_FIN || '';
+        const ini = rawInicio ? new Date(rawInicio) : null;
+        if (!ini || isNaN(ini.getTime())) return;
+        let fin = rawFin ? new Date(rawFin) : null;
+        if (!fin || isNaN(fin.getTime())) fin = now;
+        const diffMs = fin.getTime() - ini.getTime();
+        if (diffMs <= 0) return;
+        const dias = diffMs / (1000 * 60 * 60 * 24);
+        if (!map[id]) map[id] = { sumDias: 0, count: 0 };
+        map[id].sumDias += dias;
+        map[id].count += 1;
+    });
+    return map;
 }
 
 async function loadData() {
@@ -1320,6 +1351,13 @@ function renderProductividadPage() {
         }
     });
 
+    // ── Días en estados por trámite (Estados_tramites: fecha_hora → fecha_hora_fin) ──
+    const estadosDiasAgg = buildTramiteEstadosDiasMap(dashboardData.estadosTramites || []);
+    const tramiteEstadosDias = {};
+    Object.keys(estadosDiasAgg).forEach(id => {
+        tramiteEstadosDias[id] = Math.max(0, Math.floor(estadosDiasAgg[id].sumDias));
+    });
+
     // ── Agrupar por tipo → responsable con métricas de tiempo + días por estado ──
     const ESTADOS_PROD = ['en_proceso', 'finalizado', 'detenido', 'en_derivacion', 'solicitud_info', 'archivado'];
     const newProdBucket = () => ({
@@ -1391,7 +1429,7 @@ function renderProductividadPage() {
         });
     }));
 
-    // ── Gráfico 1: Solo tiempos (días) por tipo entre finalizados; cantidad solo en tooltip ──
+    // ── Gráfico 1: Tiempo total promedio por tipo (finalizados) = DEX + fases ──
     (function renderProdFinalizadosTipoChart() {
         const ctx = document.getElementById('prodFinalizadosTipoChart');
         if (!ctx || typeof Chart === 'undefined') return;
@@ -1402,21 +1440,30 @@ function renderProductividadPage() {
             const tipo = extractTipo(item.Fase_del_Tramite);
             if (!tipo) return;
             if (getEstadoTramite(item, tiempos) !== 'finalizado') return;
-            if (!agg[tipo]) agg[tipo] = { n: 0, sumDias: 0, sumDex: 0 };
+            if (!agg[tipo]) agg[tipo] = { n: 0, sumFases: 0, sumDex: 0, sumEstados: 0 };
             agg[tipo].n++;
-            agg[tipo].sumDias += (tramiteDias[item.id] || 0);
+            agg[tipo].sumFases += (tramiteDias[item.id] || 0);
             agg[tipo].sumDex += (tramiteDexDias[item.id] || 0);
+            agg[tipo].sumEstados += (tramiteEstadosDias[item.id] || 0);
         });
 
         const rows = Object.entries(agg)
-            .map(([code, { n, sumDias, sumDex }]) => ({
-                code,
-                name: TYPE_NAMES[code] || code,
-                count: n,
-                avgDias: n > 0 ? Math.round(sumDias / n) : 0,
-                avgDex: n > 0 ? Math.round(sumDex / n) : 0
-            }))
-            .sort((a, b) => b.avgDias - a.avgDias);
+            .map(([code, { n, sumFases, sumDex, sumEstados }]) => {
+                const avgDex = n > 0 ? sumDex / n : 0;
+                const avgFases = n > 0 ? sumFases / n : 0;
+                const avgEstados = n > 0 ? sumEstados / n : 0;
+                const avgTotal = Math.round(avgDex + avgFases + avgEstados);
+                return {
+                    code,
+                    name: TYPE_NAMES[code] || code,
+                    count: n,
+                    avgDex: Math.round(avgDex),
+                    avgFases: Math.round(avgFases),
+                    avgEstados: Math.round(avgEstados),
+                    avgTotal
+                };
+            })
+            .sort((a, b) => b.avgTotal - a.avgTotal);
 
         if (rows.length === 0) {
             prodFinalizadosTipoInst = new Chart(ctx, {
@@ -1424,7 +1471,7 @@ function renderProductividadPage() {
                 data: {
                     labels: ['Sin trámites finalizados en el filtro'],
                     datasets: [{
-                        label: 'Prom. días totales',
+                        label: 'Tiempo total promedio',
                         data: [0],
                         backgroundColor: '#E0E0E0',
                         borderRadius: 4,
@@ -1437,7 +1484,7 @@ function renderProductividadPage() {
                     maintainAspectRatio: false,
                     plugins: { legend: { display: false } },
                     scales: {
-                        x: { beginAtZero: true, grid: { color: '#ECEFF1' }, ticks: { precision: 0 }, title: { display: true, text: 'Días promedio', color: '#5F6368', font: { size: 11 } } },
+                        x: { beginAtZero: true, grid: { color: '#ECEFF1' }, ticks: { precision: 0 }, title: { display: true, text: 'Días promedio (DEX + fases + estados)', color: '#5F6368', font: { size: 11 } } },
                         y: { grid: { display: false } }
                     }
                 }
@@ -1446,54 +1493,34 @@ function renderProductividadPage() {
         }
 
         const optsFin = lsHBarOptions();
-        optsFin.plugins.legend = {
-            display: true,
-            position: 'top',
-            labels: {
-                usePointStyle: true,
-                pointStyle: 'rect',
-                boxWidth: 10,
-                padding: 12,
-                font: { size: 11 }
-            }
-        };
+        optsFin.plugins.legend = { display: false };
         optsFin.plugins.tooltip.callbacks = {
             title: items => (items.length ? rows[items[0].dataIndex].name : ''),
             label: c => {
-                const v = c.parsed.x;
-                if (c.datasetIndex === 0) return ` ${v.toLocaleString()} días (prom. DEX)`;
-                return ` ${v.toLocaleString()} días (prom. fases)`;
-            },
-            afterBody: items => {
-                if (!items.length) return [];
-                const r = rows[items[0].dataIndex];
-                return [`Trámites finalizados (cant.): ${r.count.toLocaleString()}`];
+                const r = rows[c.dataIndex];
+                return [
+                    ` Tiempo total promedio: ${r.avgTotal.toLocaleString()} días`,
+                    `    · DEX: ${r.avgDex.toLocaleString()} días`,
+                    `    · Fases: ${r.avgFases.toLocaleString()} días`,
+                    `    · Estados: ${r.avgEstados.toLocaleString()} días`,
+                    ` Trámites finalizados (cant.): ${r.count.toLocaleString()}`
+                ];
             }
         };
-        optsFin.scales.x.stacked = true;
-        optsFin.scales.x.title = { display: true, text: 'Días promedio por trámite', color: '#5F6368', font: { size: 11 } };
-        optsFin.scales.y.stacked = true;
+        optsFin.scales.x.title = { display: true, text: 'Días promedio por trámite (DEX + fases + estados)', color: '#5F6368', font: { size: 11 } };
 
         prodFinalizadosTipoInst = new Chart(ctx, {
             type: 'bar',
             data: {
                 labels: rows.map(r => r.name),
-                datasets: [
-                    {
-                        label: 'DEX',
-                        data: rows.map(r => r.avgDex),
-                        backgroundColor: '#78909C',
-                        stack: 'tiempos',
-                        maxBarThickness: 28
-                    },
-                    {
-                        label: 'Prom. fases (sin DEX)',
-                        data: rows.map(r => r.avgDias),
-                        backgroundColor: '#1A3C6E',
-                        stack: 'tiempos',
-                        maxBarThickness: 28
-                    }
-                ]
+                datasets: [{
+                    label: 'Tiempo total promedio (días)',
+                    data: rows.map(r => r.avgTotal),
+                    backgroundColor: '#1A3C6E',
+                    maxBarThickness: 28,
+                    borderRadius: 4,
+                    borderSkipped: false
+                }]
             },
             options: optsFin
         });
