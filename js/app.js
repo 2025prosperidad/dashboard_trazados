@@ -1454,6 +1454,7 @@ function renderProductividadPage() {
                         label: 'Prom. días totales (suma fases)',
                         data: rows.map(r => r.avgDias),
                         backgroundColor: '#1565C0',
+                        stack: 'tiempos',
                         borderRadius: 4,
                         borderSkipped: false,
                         maxBarThickness: 22
@@ -1462,6 +1463,7 @@ function renderProductividadPage() {
                         label: 'Prom. DEX (Sol. Oficio → Start date)',
                         data: rows.map(r => r.avgDex),
                         backgroundColor: '#78909C',
+                        stack: 'tiempos',
                         borderRadius: 4,
                         borderSkipped: false,
                         maxBarThickness: 22
@@ -1501,11 +1503,16 @@ function renderProductividadPage() {
                 scales: {
                     x: {
                         beginAtZero: true,
+                        stacked: true,
                         grid: { color: '#ECEFF1' },
                         ticks: { precision: 0 },
                         title: { display: true, text: 'Días promedio', color: '#5F6368', font: { size: 11, weight: '500' } }
                     },
-                    y: { grid: { display: false }, ticks: { font: { size: 11 } } }
+                    y: {
+                        stacked: true,
+                        grid: { display: false },
+                        ticks: { font: { size: 11 } }
+                    }
                 }
             }
         });
